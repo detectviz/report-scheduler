@@ -71,6 +71,25 @@ func (s *SqliteStore) initSchema() error {
 		FOREIGN KEY(datasource_id) REFERENCES datasources(id)
 	);
 	`
+	if _, err := s.db.Exec(schema); err != nil {
+		return err
+	}
+
+	schema = `
+	CREATE TABLE IF NOT EXISTS schedules (
+		id TEXT PRIMARY KEY,
+		name TEXT NOT NULL,
+		cron_spec TEXT NOT NULL,
+		timezone TEXT NOT NULL,
+		recipients TEXT,
+		email_subject TEXT,
+		email_body TEXT,
+		report_ids TEXT,
+		is_enabled BOOLEAN NOT NULL,
+		created_at TIMESTAMP NOT NULL,
+		updated_at TIMESTAMP NOT NULL
+	);
+	`
 	_, err := s.db.Exec(schema)
 	return err
 }
@@ -133,6 +152,67 @@ func (s *SqliteStore) UpdateDataSource(ctx context.Context, id string, ds *model
 
 func (s *SqliteStore) DeleteDataSource(ctx context.Context, id string) error {
 	query := `DELETE FROM datasources WHERE id = ?`
+	_, err := s.db.ExecContext(ctx, query, id)
+	return err
+}
+
+// --- Schedule Methods ---
+
+func (s *SqliteStore) CreateSchedule(ctx context.Context, sc *models.Schedule) error {
+	sc.ID = uuid.New().String()
+	sc.CreatedAt = time.Now()
+	sc.UpdatedAt = time.Now()
+
+	query := `INSERT INTO schedules (id, name, cron_spec, timezone, recipients, email_subject, email_body, report_ids, is_enabled, created_at, updated_at)
+			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+	_, err := s.db.ExecContext(ctx, query, sc.ID, sc.Name, sc.CronSpec, sc.Timezone, sc.Recipients, sc.EmailSubject, sc.EmailBody, sc.ReportIDs, sc.IsEnabled, sc.CreatedAt, sc.UpdatedAt)
+	return err
+}
+
+func (s *SqliteStore) GetSchedules(ctx context.Context) ([]models.Schedule, error) {
+	query := `SELECT id, name, cron_spec, timezone, recipients, email_subject, email_body, report_ids, is_enabled, created_at, updated_at FROM schedules`
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var schedules []models.Schedule
+	for rows.Next() {
+		var sc models.Schedule
+		if err := rows.Scan(&sc.ID, &sc.Name, &sc.CronSpec, &sc.Timezone, &sc.Recipients, &sc.EmailSubject, &sc.EmailBody, &sc.ReportIDs, &sc.IsEnabled, &sc.CreatedAt, &sc.UpdatedAt); err != nil {
+			return nil, err
+		}
+		schedules = append(schedules, sc)
+	}
+	return schedules, nil
+}
+
+func (s *SqliteStore) GetScheduleByID(ctx context.Context, id string) (*models.Schedule, error) {
+	query := `SELECT id, name, cron_spec, timezone, recipients, email_subject, email_body, report_ids, is_enabled, created_at, updated_at FROM schedules WHERE id = ?`
+	row := s.db.QueryRowContext(ctx, query, id)
+
+	var sc models.Schedule
+	err := row.Scan(&sc.ID, &sc.Name, &sc.CronSpec, &sc.Timezone, &sc.Recipients, &sc.EmailSubject, &sc.EmailBody, &sc.ReportIDs, &sc.IsEnabled, &sc.CreatedAt, &sc.UpdatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &sc, nil
+}
+
+func (s *SqliteStore) UpdateSchedule(ctx context.Context, id string, sc *models.Schedule) error {
+	sc.UpdatedAt = time.Now()
+	query := `UPDATE schedules SET name = ?, cron_spec = ?, timezone = ?, recipients = ?, email_subject = ?, email_body = ?, report_ids = ?, is_enabled = ?, updated_at = ? WHERE id = ?`
+	_, err := s.db.ExecContext(ctx, query, sc.Name, sc.CronSpec, sc.Timezone, sc.Recipients, sc.EmailSubject, sc.EmailBody, sc.ReportIDs, sc.IsEnabled, sc.UpdatedAt, id)
+	return err
+}
+
+func (s *SqliteStore) DeleteSchedule(ctx context.Context, id string) error {
+	query := `DELETE FROM schedules WHERE id = ?`
 	_, err := s.db.ExecContext(ctx, query, id)
 	return err
 }

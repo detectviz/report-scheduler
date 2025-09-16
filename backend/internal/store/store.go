@@ -28,6 +28,13 @@ type Store interface {
 	CreateReportDefinition(ctx context.Context, rd *models.ReportDefinition) error
 	UpdateReportDefinition(ctx context.Context, id string, rd *models.ReportDefinition) error
 	DeleteReportDefinition(ctx context.Context, id string) error
+
+	// --- Schedule Methods ---
+	GetSchedules(ctx context.Context) ([]models.Schedule, error)
+	GetScheduleByID(ctx context.Context, id string) (*models.Schedule, error)
+	CreateSchedule(ctx context.Context, s *models.Schedule) error
+	UpdateSchedule(ctx context.Context, id string, s *models.Schedule) error
+	DeleteSchedule(ctx context.Context, id string) error
 }
 
 // NewStore 是資料儲存層的工廠函式。

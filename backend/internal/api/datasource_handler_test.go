@@ -64,6 +64,17 @@ func newTestHandler(t *testing.T) (http.Handler, func()) {
 				r.Delete("/", apiHandler.DeleteReportDefinition)
 			})
 		})
+
+		// Schedules 路由
+		r.Route("/schedules", func(r chi.Router) {
+			r.Get("/", apiHandler.GetSchedules)
+			r.Post("/", apiHandler.CreateSchedule)
+			r.Route("/{scheduleID}", func(r chi.Router) {
+				r.Get("/", apiHandler.GetScheduleByID)
+				r.Put("/", apiHandler.UpdateSchedule)
+				r.Delete("/", apiHandler.DeleteSchedule)
+			})
+		})
 	})
 
 	// 清理函式，用於在測試結束後刪除暫存目錄

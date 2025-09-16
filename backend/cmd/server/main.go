@@ -61,6 +61,17 @@ func main() {
 				r.Delete("/", apiHandler.DeleteReportDefinition)
 			})
 		})
+
+		// Schedules 路由
+		r.Route("/schedules", func(r chi.Router) {
+			r.Get("/", apiHandler.GetSchedules)
+			r.Post("/", apiHandler.CreateSchedule)
+			r.Route("/{scheduleID}", func(r chi.Router) {
+				r.Get("/", apiHandler.GetScheduleByID)
+				r.Put("/", apiHandler.UpdateSchedule)
+				r.Delete("/", apiHandler.DeleteSchedule)
+			})
+		})
 	})
 
 	// 啟動 HTTP 伺服器
