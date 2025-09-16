@@ -3,20 +3,42 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"report-scheduler/backend/internal/config"
 	"report-scheduler/backend/internal/models"
-	"report-scheduler/backend/internal/store" // 引入 store package
+	"report-scheduler/backend/internal/store"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/stretchr/testify/require"
 )
 
-// setupTestRouter 現在會建立一個 MockStore 並將其注入到 APIHandler
-func setupTestRouter() http.Handler {
-	mockStore := store.NewMockStore()
-	apiHandler := NewAPIHandler(mockStore)
+// newTestHandler 建立一個使用真實 SqliteStore 的測試路由器。
+// 它會回傳一個 http.Handler 和一個用於清理暫存資料庫的函式。
+func newTestHandler(t *testing.T) (http.Handler, func()) {
+	// 建立一個暫存目錄來存放測試資料庫
+	tempDir, err := ioutil.TempDir("", "test-db-")
+	require.NoError(t, err)
 
+	dbPath := tempDir + "/test.db"
+
+	// 為測試建立一個暫時的設定
+	testCfg := config.Config{
+		Database: config.DBConfig{
+			Type: "sqlite",
+			Path: dbPath,
+		},
+	}
+
+	// 透過工廠函式初始化 store
+	dbStore, err := store.NewStore(testCfg)
+	require.NoError(t, err)
+
+	// 設定 handler 和 router
+	apiHandler := NewAPIHandler(dbStore)
 	r := chi.NewRouter()
 	r.Route("/api/v1/datasources", func(r chi.Router) {
 		r.Get("/", apiHandler.GetDataSources)
@@ -27,111 +49,93 @@ func setupTestRouter() http.Handler {
 			r.Delete("/", apiHandler.DeleteDataSource)
 		})
 	})
-	return r
+
+	// 清理函式，用於在測試結束後刪除暫存目錄
+	cleanup := func() {
+		os.RemoveAll(tempDir)
+	}
+
+	return r, cleanup
 }
 
-// TestDatasourceAPI 是一個整合測試，驗證所有 datasource 相關的端點
-func TestDatasourceAPI(t *testing.T) {
-	router := setupTestRouter()
-	server := httptest.NewServer(router)
+func TestDatasourceAPI_WithRealDB(t *testing.T) {
+	handler, cleanup := newTestHandler(t)
+	defer cleanup()
+
+	server := httptest.NewServer(handler)
 	defer server.Close()
 
-	// 測試案例
-	tests := []struct {
-		name       string
-		method     string
-		path       string
-		body       []byte
-		wantStatus int
-		verify     func(t *testing.T, resp *http.Response)
-	}{
-		{
-			name:       "GET /api/v1/datasources",
-			method:     http.MethodGet,
-			path:       "/api/v1/datasources",
-			wantStatus: http.StatusOK,
-			verify: func(t *testing.T, resp *http.Response) {
-				var ds []models.DataSource
-				if err := json.NewDecoder(resp.Body).Decode(&ds); err != nil {
-					t.Fatalf("無法解析 JSON: %v", err)
-				}
-				if len(ds) == 0 || ds[0].ID != "mock-ds-1" {
-					t.Errorf("回傳的資料不符合預期")
-				}
-			},
-		},
-		{
-			name:       "GET /api/v1/datasources/{id}",
-			method:     http.MethodGet,
-			path:       "/api/v1/datasources/get-id-123",
-			wantStatus: http.StatusOK,
-			verify: func(t *testing.T, resp *http.Response) {
-				var ds models.DataSource
-				if err := json.NewDecoder(resp.Body).Decode(&ds); err != nil {
-					t.Fatalf("無法解析 JSON: %v", err)
-				}
-				if ds.ID != "get-id-123" {
-					t.Errorf("預期 ID 為 'get-id-123', 得到 '%s'", ds.ID)
-				}
-			},
-		},
-		{
-			name:       "POST /api/v1/datasources",
-			method:     http.MethodPost,
-			path:       "/api/v1/datasources",
-			body:       []byte(`{"name": "new ds"}`),
-			wantStatus: http.StatusCreated,
-			verify: func(t *testing.T, resp *http.Response) {
-				var ds models.DataSource
-				if err := json.NewDecoder(resp.Body).Decode(&ds); err != nil {
-					t.Fatalf("無法解析 JSON: %v", err)
-				}
-				if ds.ID != "new-mock-id" {
-					t.Errorf("預期建立後的 ID 為 'new-mock-id', 得到 '%s'", ds.ID)
-				}
-			},
-		},
-		{
-			name:       "PUT /api/v1/datasources/{id}",
-			method:     http.MethodPut,
-			path:       "/api/v1/datasources/update-id-456",
-			body:       []byte(`{"name": "updated ds"}`),
-			wantStatus: http.StatusOK,
-		},
-		{
-			name:       "DELETE /api/v1/datasources/{id}",
-			method:     http.MethodDelete,
-			path:       "/api/v1/datasources/delete-id-789",
-			wantStatus: http.StatusOK,
-		},
-		{
-			name:       "GET /api/v1/datasources/not/found",
-			method:     http.MethodGet,
-			path:       "/api/v1/datasources/not/found",
-			wantStatus: http.StatusNotFound,
-		},
-	}
+	// 1. 開始時，GET all 應該是空的
+	t.Run("get all from empty db", func(t *testing.T) {
+		resp, err := http.Get(server.URL + "/api/v1/datasources")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req, _ := http.NewRequest(tt.method, server.URL+tt.path, bytes.NewBuffer(tt.body))
-			if tt.body != nil {
-				req.Header.Set("Content-Type", "application/json")
-			}
+		var ds []models.DataSource
+		err = json.NewDecoder(resp.Body).Decode(&ds)
+		require.NoError(t, err)
+		require.Len(t, ds, 0)
+	})
 
-			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				t.Fatalf("請求失敗: %v", err)
-			}
-			defer resp.Body.Close()
+	// 2. 建立一個新的 datasource
+	var createdDS models.DataSource
+	t.Run("create datasource", func(t *testing.T) {
+		dsJSON := `{"name": "Test Kibana", "type": "kibana", "url": "http://k.test", "auth_type": "api_token", "status": "unverified"}`
+		resp, err := http.Post(server.URL+"/api/v1/datasources", "application/json", bytes.NewBuffer([]byte(dsJSON)))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
 
-			if resp.StatusCode != tt.wantStatus {
-				t.Errorf("預期狀態碼 %d, 得到 %d", tt.wantStatus, resp.StatusCode)
-			}
+		err = json.NewDecoder(resp.Body).Decode(&createdDS)
+		require.NoError(t, err)
+		require.NotEmpty(t, createdDS.ID)
+		require.Equal(t, "Test Kibana", createdDS.Name)
+	})
 
-			if tt.verify != nil {
-				tt.verify(t, resp)
-			}
-		})
-	}
+	// 3. 透過 ID 取得剛剛建立的 datasource
+	t.Run("get created datasource by id", func(t *testing.T) {
+		require.NotEmpty(t, createdDS.ID, "created datasource ID should not be empty")
+		resp, err := http.Get(server.URL + "/api/v1/datasources/" + createdDS.ID)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		var fetchedDS models.DataSource
+		err = json.NewDecoder(resp.Body).Decode(&fetchedDS)
+		require.NoError(t, err)
+		require.Equal(t, createdDS.ID, fetchedDS.ID)
+		require.Equal(t, createdDS.Name, fetchedDS.Name)
+	})
+
+	// 4. 再次 GET all，應該會有一筆資料
+	t.Run("get all with one item", func(t *testing.T) {
+		resp, err := http.Get(server.URL + "/api/v1/datasources")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		var ds []models.DataSource
+		err = json.NewDecoder(resp.Body).Decode(&ds)
+		require.NoError(t, err)
+		require.Len(t, ds, 1)
+		require.Equal(t, createdDS.ID, ds[0].ID)
+	})
+
+	// 5. 刪除剛剛建立的 datasource
+	t.Run("delete datasource", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodDelete, server.URL+"/api/v1/datasources/"+createdDS.ID, nil)
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	// 6. 再次透過 ID 取得，應該會回傳 404 Not Found
+	t.Run("get deleted datasource by id", func(t *testing.T) {
+		resp, err := http.Get(server.URL + "/api/v1/datasources/" + createdDS.ID)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusNotFound, resp.StatusCode)
+	})
 }

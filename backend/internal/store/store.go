@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"fmt"
+	"report-scheduler/backend/internal/config"
 	"report-scheduler/backend/internal/models"
 )
 
@@ -19,4 +21,16 @@ type Store interface {
 	UpdateDataSource(ctx context.Context, id string, ds *models.DataSource) error
 	// DeleteDataSource 根據 ID 刪除一個資料來源
 	DeleteDataSource(ctx context.Context, id string) error
+}
+
+// NewStore 是資料儲存層的工廠函式。
+// 它會根據設定檔中的 database.type 來決定要回傳哪一種 Store 實作。
+func NewStore(cfg config.Config) (Store, error) {
+	switch cfg.Database.Type {
+	case "sqlite":
+		return newSqliteStore(cfg)
+	// 未來可以在這裡新增 "postgres" 的 case
+	default:
+		return nil, fmt.Errorf("不支援的資料庫類型: %s", cfg.Database.Type)
+	}
 }
