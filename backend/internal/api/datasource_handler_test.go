@@ -40,13 +40,29 @@ func newTestHandler(t *testing.T) (http.Handler, func()) {
 	// 設定 handler 和 router
 	apiHandler := NewAPIHandler(dbStore)
 	r := chi.NewRouter()
-	r.Route("/api/v1/datasources", func(r chi.Router) {
-		r.Get("/", apiHandler.GetDataSources)
-		r.Post("/", apiHandler.CreateDataSource)
-		r.Route("/{datasourceID}", func(r chi.Router) {
-			r.Get("/", apiHandler.GetDataSourceByID)
-			r.Put("/", apiHandler.UpdateDataSource)
-			r.Delete("/", apiHandler.DeleteDataSource)
+
+	// 這裡的路由設定應該要跟 main.go 完全一樣，以確保測試的準確性
+	r.Route("/api/v1", func(r chi.Router) {
+		// Datasources 路由
+		r.Route("/datasources", func(r chi.Router) {
+			r.Get("/", apiHandler.GetDataSources)
+			r.Post("/", apiHandler.CreateDataSource)
+			r.Route("/{datasourceID}", func(r chi.Router) {
+				r.Get("/", apiHandler.GetDataSourceByID)
+				r.Put("/", apiHandler.UpdateDataSource)
+				r.Delete("/", apiHandler.DeleteDataSource)
+			})
+		})
+
+		// Report Definitions 路由
+		r.Route("/reports", func(r chi.Router) {
+			r.Get("/", apiHandler.GetReportDefinitions)
+			r.Post("/", apiHandler.CreateReportDefinition)
+			r.Route("/{reportID}", func(r chi.Router) {
+				r.Get("/", apiHandler.GetReportDefinitionByID)
+				r.Put("/", apiHandler.UpdateReportDefinition)
+				r.Delete("/", apiHandler.DeleteReportDefinition)
+			})
 		})
 	})
 

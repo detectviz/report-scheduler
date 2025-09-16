@@ -54,6 +54,23 @@ func (s *SqliteStore) initSchema() error {
 		updated_at TIMESTAMP NOT NULL
 	);
 	`
+	if _, err := s.db.Exec(schema); err != nil {
+		return err
+	}
+
+	schema = `
+	CREATE TABLE IF NOT EXISTS report_definitions (
+		id TEXT PRIMARY KEY,
+		name TEXT NOT NULL,
+		description TEXT,
+		datasource_id TEXT NOT NULL,
+		time_range TEXT NOT NULL,
+		elements TEXT,
+		created_at TIMESTAMP NOT NULL,
+		updated_at TIMESTAMP NOT NULL,
+		FOREIGN KEY(datasource_id) REFERENCES datasources(id)
+	);
+	`
 	_, err := s.db.Exec(schema)
 	return err
 }
@@ -116,6 +133,67 @@ func (s *SqliteStore) UpdateDataSource(ctx context.Context, id string, ds *model
 
 func (s *SqliteStore) DeleteDataSource(ctx context.Context, id string) error {
 	query := `DELETE FROM datasources WHERE id = ?`
+	_, err := s.db.ExecContext(ctx, query, id)
+	return err
+}
+
+// --- ReportDefinition Methods ---
+
+func (s *SqliteStore) CreateReportDefinition(ctx context.Context, rd *models.ReportDefinition) error {
+	rd.ID = uuid.New().String()
+	rd.CreatedAt = time.Now()
+	rd.UpdatedAt = time.Now()
+
+	query := `INSERT INTO report_definitions (id, name, description, datasource_id, time_range, elements, created_at, updated_at)
+			  VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+
+	_, err := s.db.ExecContext(ctx, query, rd.ID, rd.Name, rd.Description, rd.DataSourceID, rd.TimeRange, rd.Elements, rd.CreatedAt, rd.UpdatedAt)
+	return err
+}
+
+func (s *SqliteStore) GetReportDefinitions(ctx context.Context) ([]models.ReportDefinition, error) {
+	query := `SELECT id, name, description, datasource_id, time_range, elements, created_at, updated_at FROM report_definitions`
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var reports []models.ReportDefinition
+	for rows.Next() {
+		var rd models.ReportDefinition
+		if err := rows.Scan(&rd.ID, &rd.Name, &rd.Description, &rd.DataSourceID, &rd.TimeRange, &rd.Elements, &rd.CreatedAt, &rd.UpdatedAt); err != nil {
+			return nil, err
+		}
+		reports = append(reports, rd)
+	}
+	return reports, nil
+}
+
+func (s *SqliteStore) GetReportDefinitionByID(ctx context.Context, id string) (*models.ReportDefinition, error) {
+	query := `SELECT id, name, description, datasource_id, time_range, elements, created_at, updated_at FROM report_definitions WHERE id = ?`
+	row := s.db.QueryRowContext(ctx, query, id)
+
+	var rd models.ReportDefinition
+	err := row.Scan(&rd.ID, &rd.Name, &rd.Description, &rd.DataSourceID, &rd.TimeRange, &rd.Elements, &rd.CreatedAt, &rd.UpdatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &rd, nil
+}
+
+func (s *SqliteStore) UpdateReportDefinition(ctx context.Context, id string, rd *models.ReportDefinition) error {
+	rd.UpdatedAt = time.Now()
+	query := `UPDATE report_definitions SET name = ?, description = ?, datasource_id = ?, time_range = ?, elements = ?, updated_at = ? WHERE id = ?`
+	_, err := s.db.ExecContext(ctx, query, rd.Name, rd.Description, rd.DataSourceID, rd.TimeRange, rd.Elements, rd.UpdatedAt, id)
+	return err
+}
+
+func (s *SqliteStore) DeleteReportDefinition(ctx context.Context, id string) error {
+	query := `DELETE FROM report_definitions WHERE id = ?`
 	_, err := s.db.ExecContext(ctx, query, id)
 	return err
 }

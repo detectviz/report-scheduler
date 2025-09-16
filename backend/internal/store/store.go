@@ -21,6 +21,13 @@ type Store interface {
 	UpdateDataSource(ctx context.Context, id string, ds *models.DataSource) error
 	// DeleteDataSource 根據 ID 刪除一個資料來源
 	DeleteDataSource(ctx context.Context, id string) error
+
+	// --- ReportDefinition Methods ---
+	GetReportDefinitions(ctx context.Context) ([]models.ReportDefinition, error)
+	GetReportDefinitionByID(ctx context.Context, id string) (*models.ReportDefinition, error)
+	CreateReportDefinition(ctx context.Context, rd *models.ReportDefinition) error
+	UpdateReportDefinition(ctx context.Context, id string, rd *models.ReportDefinition) error
+	DeleteReportDefinition(ctx context.Context, id string) error
 }
 
 // NewStore 是資料儲存層的工廠函式。
