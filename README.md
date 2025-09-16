@@ -7,7 +7,7 @@
 本專案採用前後端分離架構：
 
 -   `backend/`: Go 語言開發的後端服務。
--   `frontend/`: React/TypeScript 開發的前端應用程式。
+-   `frontend/`: 使用 React, TypeScript, Ant Design 開發的前端應用程式。
 
 ## 開發入門
 
