@@ -4,113 +4,112 @@ import (
 	"encoding/json"
 	"net/http"
 	"report-scheduler/backend/internal/models"
-	"time"
+	"report-scheduler/backend/internal/store"
 
 	"github.com/go-chi/chi/v5"
 )
 
-// GetDataSources 處理獲取所有資料來源的請求
-// @Summary 獲取所有資料來源
-// @Description 回傳一個包含所有資料來源的列表
-// @Tags datasources
-// @Accept  json
-// @Produce  json
-// @Success 200 {array} models.DataSource
-// @Router /datasources [get]
-func GetDataSources(w http.ResponseWriter, r *http.Request) {
-	mockDataSources := []models.DataSource{
-		{
-			ID:        "a3b8d4c2-6e7f-4b0a-9c1d-8e2f0a1b3c4d",
-			Name:      "公司正式環境 Kibana",
-			Type:      models.Kibana,
-			URL:       "https://kibana.mycompany.com",
-			APIURL:    "https://kibana.mycompany.com/api",
-			AuthType:  models.APIToken,
-			Version:   "8.5.1",
-			Status:    models.Verified,
-			CreatedAt: time.Now().Add(-24 * time.Hour),
-			UpdatedAt: time.Now(),
-		},
-	}
+// APIHandler 是一個包含應用程式依賴（如資料庫 store）的結構
+type APIHandler struct {
+	Store store.Store
+}
 
+// NewAPIHandler 建立並回傳一個新的 APIHandler
+func NewAPIHandler(s store.Store) *APIHandler {
+	return &APIHandler{
+		Store: s,
+	}
+}
+
+// --- Utility Functions ---
+
+// respondWithError 是一個輔助函式，用於發送統一格式的 JSON 錯誤訊息
+func (h *APIHandler) respondWithError(w http.ResponseWriter, code int, message string) {
+	h.respondWithJSON(w, code, map[string]string{"error": message})
+}
+
+// respondWithJSON 是一個輔助函式，用於將 payload 編碼為 JSON 並發送
+func (h *APIHandler) respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+	response, err := json.Marshal(payload)
+	if err != nil {
+		// 如果連錯誤訊息本身都無法序列化，就只能回傳一個基本的伺服器錯誤
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Internal Server Error"))
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(mockDataSources)
+	w.WriteHeader(code)
+	w.Write(response)
+}
+
+// --- Handler Methods ---
+
+// GetDataSources 處理獲取所有資料來源的請求
+func (h *APIHandler) GetDataSources(w http.ResponseWriter, r *http.Request) {
+	dataSources, err := h.Store.GetDataSources(r.Context())
+	if err != nil {
+		h.respondWithError(w, http.StatusInternalServerError, "無法獲取資料來源")
+		return
+	}
+	h.respondWithJSON(w, http.StatusOK, dataSources)
 }
 
 // CreateDataSource 處理新增資料來源的請求
-// @Summary 新增一個資料來源
-// @Description 根據傳入的資料建立一個新的資料來源
-// @Tags datasources
-// @Accept  json
-// @Produce  json
-// @Param   datasource body models.DataSource true "資料來源資訊"
-// @Success 201 {object} map[string]string
-// @Router /datasources [post]
-func CreateDataSource(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{"message": "資料來源已成功建立"})
+func (h *APIHandler) CreateDataSource(w http.ResponseWriter, r *http.Request) {
+	var ds models.DataSource
+	if err := json.NewDecoder(r.Body).Decode(&ds); err != nil {
+		h.respondWithError(w, http.StatusBadRequest, "無效的請求內容")
+		return
+	}
+	defer r.Body.Close()
+
+	// 在真實應用中，這裡可能還需要驗證 ds 的內容
+	if err := h.Store.CreateDataSource(r.Context(), &ds); err != nil {
+		h.respondWithError(w, http.StatusInternalServerError, "無法建立資料來源")
+		return
+	}
+	h.respondWithJSON(w, http.StatusCreated, ds) // 回傳建立後包含 ID 的物件
 }
 
 // GetDataSourceByID 處理根據 ID 獲取單一資料來源的請求
-// @Summary 根據 ID 獲取單一資料來源
-// @Description 回傳指定 ID 的資料來源資訊
-// @Tags datasources
-// @Accept  json
-// @Produce  json
-// @Param   datasourceID   path    string  true  "資料來源 ID"
-// @Success 200 {object} models.DataSource
-// @Router /datasources/{datasourceID} [get]
-func GetDataSourceByID(w http.ResponseWriter, r *http.Request) {
-	// 從 chi 的 URL 參數中獲取 ID
+func (h *APIHandler) GetDataSourceByID(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "datasourceID")
-
-	mockDataSource := models.DataSource{
-		ID:        id, // 使用從 URL 來的 ID
-		Name:      "公司正式環境 Kibana (ID: " + id + ")", // 在名稱中也反映 ID
-		Type:      models.Kibana,
-		URL:       "https://kibana.mycompany.com",
-		APIURL:    "https://kibana.mycompany.com/api",
-		AuthType:  models.APIToken,
-		Version:   "8.5.1",
-		Status:    models.Verified,
-		CreatedAt: time.Now().Add(-24 * time.Hour),
-		UpdatedAt: time.Now(),
+	ds, err := h.Store.GetDataSourceByID(r.Context(), id)
+	if err != nil {
+		// 這邊可以更細緻地處理 not found 錯誤，但暫時先用 500
+		h.respondWithError(w, http.StatusInternalServerError, "無法獲取資料來源: "+err.Error())
+		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(mockDataSource)
+	if ds == nil {
+		h.respondWithError(w, http.StatusNotFound, "找不到指定的資料來源")
+		return
+	}
+	h.respondWithJSON(w, http.StatusOK, ds)
 }
 
 // UpdateDataSource 處理更新資料來源的請求
-// @Summary 更新一個資料來源
-// @Description 根據傳入的資料更新指定 ID 的資料來源
-// @Tags datasources
-// @Accept  json
-// @Produce  json
-// @Param   datasourceID   path    string  true  "資料來源 ID"
-// @Param   datasource body models.DataSource true "資料來源資訊"
-// @Success 200 {object} map[string]string
-// @Router /datasources/{datasourceID} [put]
-func UpdateDataSource(w http.ResponseWriter, r *http.Request) {
+func (h *APIHandler) UpdateDataSource(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "datasourceID")
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "資料來源 " + id + " 已成功更新"})
+	var ds models.DataSource
+	if err := json.NewDecoder(r.Body).Decode(&ds); err != nil {
+		h.respondWithError(w, http.StatusBadRequest, "無效的請求內容")
+		return
+	}
+	defer r.Body.Close()
+
+	if err := h.Store.UpdateDataSource(r.Context(), id, &ds); err != nil {
+		h.respondWithError(w, http.StatusInternalServerError, "無法更新資料來源")
+		return
+	}
+	h.respondWithJSON(w, http.StatusOK, map[string]string{"message": "資料來源 " + id + " 已成功更新"})
 }
 
 // DeleteDataSource 處理刪除資料來源的請求
-// @Summary 刪除一個資料來源
-// @Description 刪除指定 ID 的資料來源
-// @Tags datasources
-// @Accept  json
-// @Produce  json
-// @Param   datasourceID   path    string  true  "資料來源 ID"
-// @Success 200 {object} map[string]string
-// @Router /datasources/{datasourceID} [delete]
-func DeleteDataSource(w http.ResponseWriter, r *http.Request) {
+func (h *APIHandler) DeleteDataSource(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "datasourceID")
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "資料來源 " + id + " 已成功刪除"})
+	if err := h.Store.DeleteDataSource(r.Context(), id); err != nil {
+		h.respondWithError(w, http.StatusInternalServerError, "無法刪除資料來源")
+		return
+	}
+	h.respondWithJSON(w, http.StatusOK, map[string]string{"message": "資料來源 " + id + " 已成功刪除"})
 }

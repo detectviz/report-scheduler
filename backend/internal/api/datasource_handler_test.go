@@ -1,26 +1,30 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"report-scheduler/backend/internal/models"
+	"report-scheduler/backend/internal/store" // 引入 store package
 	"testing"
 
 	"github.com/go-chi/chi/v5"
 )
 
-// setupTestRouter 建立一個包含我們所有 API 路由的測試路由器
-// 這讓我們可以測試完整的請求 -> 路由 -> 處理器流程
+// setupTestRouter 現在會建立一個 MockStore 並將其注入到 APIHandler
 func setupTestRouter() http.Handler {
+	mockStore := store.NewMockStore()
+	apiHandler := NewAPIHandler(mockStore)
+
 	r := chi.NewRouter()
 	r.Route("/api/v1/datasources", func(r chi.Router) {
-		r.Get("/", GetDataSources)
-		r.Post("/", CreateDataSource)
+		r.Get("/", apiHandler.GetDataSources)
+		r.Post("/", apiHandler.CreateDataSource)
 		r.Route("/{datasourceID}", func(r chi.Router) {
-			r.Get("/", GetDataSourceByID)
-			r.Put("/", UpdateDataSource)
-			r.Delete("/", DeleteDataSource)
+			r.Get("/", apiHandler.GetDataSourceByID)
+			r.Put("/", apiHandler.UpdateDataSource)
+			r.Delete("/", apiHandler.DeleteDataSource)
 		})
 	})
 	return r
@@ -28,21 +32,21 @@ func setupTestRouter() http.Handler {
 
 // TestDatasourceAPI 是一個整合測試，驗證所有 datasource 相關的端點
 func TestDatasourceAPI(t *testing.T) {
-	// 建立一個包含完整路由的測試伺服器
 	router := setupTestRouter()
 	server := httptest.NewServer(router)
 	defer server.Close()
 
-	// 定義測試案例
+	// 測試案例
 	tests := []struct {
 		name       string
 		method     string
 		path       string
+		body       []byte
 		wantStatus int
 		verify     func(t *testing.T, resp *http.Response)
 	}{
 		{
-			name:       "GET /api/v1/datasources (取得所有資源)",
+			name:       "GET /api/v1/datasources",
 			method:     http.MethodGet,
 			path:       "/api/v1/datasources",
 			wantStatus: http.StatusOK,
@@ -51,59 +55,70 @@ func TestDatasourceAPI(t *testing.T) {
 				if err := json.NewDecoder(resp.Body).Decode(&ds); err != nil {
 					t.Fatalf("無法解析 JSON: %v", err)
 				}
-				if len(ds) < 1 {
-					t.Error("預期至少回傳一個資料來源")
+				if len(ds) == 0 || ds[0].ID != "mock-ds-1" {
+					t.Errorf("回傳的資料不符合預期")
 				}
 			},
 		},
 		{
-			name:       "GET /api/v1/datasources/{id} (取得單一資源)",
+			name:       "GET /api/v1/datasources/{id}",
 			method:     http.MethodGet,
-			path:       "/api/v1/datasources/test-id-123",
+			path:       "/api/v1/datasources/get-id-123",
 			wantStatus: http.StatusOK,
 			verify: func(t *testing.T, resp *http.Response) {
 				var ds models.DataSource
 				if err := json.NewDecoder(resp.Body).Decode(&ds); err != nil {
 					t.Fatalf("無法解析 JSON: %v", err)
 				}
-				if ds.ID != "test-id-123" {
-					t.Errorf("預期 ID 為 'test-id-123', 得到 '%s'", ds.ID)
+				if ds.ID != "get-id-123" {
+					t.Errorf("預期 ID 為 'get-id-123', 得到 '%s'", ds.ID)
 				}
 			},
 		},
 		{
-			name:       "POST /api/v1/datasources (建立資源)",
+			name:       "POST /api/v1/datasources",
 			method:     http.MethodPost,
 			path:       "/api/v1/datasources",
+			body:       []byte(`{"name": "new ds"}`),
 			wantStatus: http.StatusCreated,
-			verify:     nil, // 只檢查狀態碼
+			verify: func(t *testing.T, resp *http.Response) {
+				var ds models.DataSource
+				if err := json.NewDecoder(resp.Body).Decode(&ds); err != nil {
+					t.Fatalf("無法解析 JSON: %v", err)
+				}
+				if ds.ID != "new-mock-id" {
+					t.Errorf("預期建立後的 ID 為 'new-mock-id', 得到 '%s'", ds.ID)
+				}
+			},
 		},
 		{
-			name:       "PUT /api/v1/datasources/{id} (更新資源)",
+			name:       "PUT /api/v1/datasources/{id}",
 			method:     http.MethodPut,
 			path:       "/api/v1/datasources/update-id-456",
+			body:       []byte(`{"name": "updated ds"}`),
 			wantStatus: http.StatusOK,
-			verify:     nil, // 只檢查狀態碼
 		},
 		{
-			name:       "DELETE /api/v1/datasources/{id} (刪除資源)",
+			name:       "DELETE /api/v1/datasources/{id}",
 			method:     http.MethodDelete,
 			path:       "/api/v1/datasources/delete-id-789",
 			wantStatus: http.StatusOK,
-			verify:     nil, // 只檢查狀態碼
 		},
 		{
-			name:       "GET /api/v1/datasources/bad/path (不存在的路徑)",
+			name:       "GET /api/v1/datasources/not/found",
 			method:     http.MethodGet,
-			path:       "/api/v1/datasources/bad/path",
+			path:       "/api/v1/datasources/not/found",
 			wantStatus: http.StatusNotFound,
-			verify:     nil,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, _ := http.NewRequest(tt.method, server.URL+tt.path, nil)
+			req, _ := http.NewRequest(tt.method, server.URL+tt.path, bytes.NewBuffer(tt.body))
+			if tt.body != nil {
+				req.Header.Set("Content-Type", "application/json")
+			}
+
 			resp, err := http.DefaultClient.Do(req)
 			if err != nil {
 				t.Fatalf("請求失敗: %v", err)
