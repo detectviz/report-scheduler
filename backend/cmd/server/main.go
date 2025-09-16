@@ -1,46 +1,50 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"report-scheduler/backend/internal/api"
-	"report-scheduler/backend/internal/config" // 引入 config
+	"report-scheduler/backend/internal/config"
+	"report-scheduler/backend/internal/scheduler"
 	"report-scheduler/backend/internal/store"
+	"syscall"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
 func main() {
-	// 載入設定
-	cfg, err := config.LoadConfig(".") // 從當前目錄讀取 config.yaml
+	// 1. 載入設定
+	cfg, err := config.LoadConfig(".")
 	if err != nil {
 		log.Fatalf("無法載入設定: %v", err)
 	}
 
-	// 建立資料層的實例
-	// 根據 "Factory Provider" 模式，呼叫工廠函式來建立 Store 實例
+	// 2. 建立資料層實例
 	dbStore, err := store.NewStore(cfg)
 	if err != nil {
 		log.Fatalf("無法連線到資料庫: %v", err)
 	}
 
-	// 建立 API 處理器的實例，並注入 store
+	// 3. 建立 API 處理器
 	apiHandler := api.NewAPIHandler(dbStore)
 
-	// 建立一個新的 chi 路由器
-	r := chi.NewRouter()
+	// 4. 建立排程器服務
+	appScheduler := scheduler.NewScheduler(dbStore)
 
-	// 使用中介軟體
+	// 5. 建立 HTTP 路由器
+	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
 	// --- API 路由 ---
-	// 將 API 路由封裝在一個群組中，方便管理
 	r.Route("/api/v1", func(r chi.Router) {
-		// Datasources 路由
 		r.Route("/datasources", func(r chi.Router) {
 			r.Get("/", apiHandler.GetDataSources)
 			r.Post("/", apiHandler.CreateDataSource)
@@ -50,8 +54,6 @@ func main() {
 				r.Delete("/", apiHandler.DeleteDataSource)
 			})
 		})
-
-		// Report Definitions 路由
 		r.Route("/reports", func(r chi.Router) {
 			r.Get("/", apiHandler.GetReportDefinitions)
 			r.Post("/", apiHandler.CreateReportDefinition)
@@ -61,8 +63,6 @@ func main() {
 				r.Delete("/", apiHandler.DeleteReportDefinition)
 			})
 		})
-
-		// Schedules 路由
 		r.Route("/schedules", func(r chi.Router) {
 			r.Get("/", apiHandler.GetSchedules)
 			r.Post("/", apiHandler.CreateSchedule)
@@ -74,10 +74,44 @@ func main() {
 		})
 	})
 
-	// 啟動 HTTP 伺服器
-	log.Println("伺服器啟動於 http://localhost:8080")
-	err = http.ListenAndServe(":8080", r)
-	if err != nil {
-		log.Fatalf("伺服器啟動失敗: %v", err)
+	// 6. 啟動背景服務
+	// 在一個 goroutine 中啟動排程器
+	go func() {
+		if err := appScheduler.Start(); err != nil {
+			log.Fatalf("排程器啟動失敗: %v", err)
+		}
+	}()
+
+	// 7. 啟動 HTTP 伺服器
+	srv := &http.Server{
+		Addr:    ":8080",
+		Handler: r,
 	}
+
+	go func() {
+		log.Println("伺服器啟動於 http://localhost:8080")
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("HTTP 伺服器監聽失敗: %s\n", err)
+		}
+	}()
+
+	// 8. 處理優雅關閉 (Graceful Shutdown)
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("收到關閉訊號，正在進行優雅關閉...")
+
+	// 停止排程器
+	schedulerCtx := appScheduler.Stop()
+	<-schedulerCtx.Done()
+	log.Println("排程器已優雅關閉")
+
+	// 設定一個超時時間來關閉 HTTP 伺服器
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatalf("伺服器關閉失敗: %v", err)
+	}
+
+	log.Println("伺服器已優雅關閉")
 }

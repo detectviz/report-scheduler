@@ -3,66 +3,93 @@ package store
 import (
 	"context"
 	"report-scheduler/backend/internal/models"
-	"time"
 )
 
-// MockStore 是一個用於測試的 Store 介面實作。
-// 它回傳預先定義好的模擬資料，讓我們可以在沒有真實資料庫的情況下測試 API 層。
-type MockStore struct{}
+// MockStore is a configurable, in-memory implementation of the Store interface for testing.
+type MockStore struct {
+	// Public fields allow tests to set up specific data or errors to be returned.
+	SchedulesToReturn []models.Schedule
+	ErrToReturn       error
+}
 
-// NewMockStore 建立一個新的 MockStore 實例
+// NewMockStore creates a new MockStore.
 func NewMockStore() *MockStore {
 	return &MockStore{}
 }
 
-// GetDataSources 實作 Store 介面的 GetDataSources 方法
+// --- DataSource Methods (Placeholders) ---
 func (s *MockStore) GetDataSources(ctx context.Context) ([]models.DataSource, error) {
-	mockData := []models.DataSource{
-		{
-			ID:        "mock-ds-1",
-			Name:      "模擬的 Kibana 來源",
-			Type:      models.Kibana,
-			URL:       "http://mock-kibana.com",
-			Status:    models.Verified,
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		},
+	if s.ErrToReturn != nil {
+		return nil, s.ErrToReturn
 	}
-	return mockData, nil
+	return []models.DataSource{}, nil
 }
-
-// GetDataSourceByID 實作 Store 介面的 GetDataSourceByID 方法
 func (s *MockStore) GetDataSourceByID(ctx context.Context, id string) (*models.DataSource, error) {
-	// 在模擬中，我們總是回傳一個成功的結果，並使用傳入的 ID
-	return &models.DataSource{
-		ID:        id,
-		Name:      "模擬的特定來源 (ID: " + id + ")",
-		Type:      models.Grafana,
-		URL:       "http://mock-grafana.com",
-		Status:    models.Verified,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}, nil
+	if s.ErrToReturn != nil {
+		return nil, s.ErrToReturn
+	}
+	return &models.DataSource{ID: id}, nil
 }
-
-// CreateDataSource 實作 Store 介面的 CreateDataSource 方法
 func (s *MockStore) CreateDataSource(ctx context.Context, ds *models.DataSource) error {
-	// 模擬成功建立。在真實應用中，這裡會將 ds 插入資料庫。
-	// 我們可以模擬資料庫行為，例如填上 ID 和時間戳。
-	ds.ID = "new-mock-id"
-	ds.CreatedAt = time.Now()
-	ds.UpdatedAt = time.Now()
-	return nil
+	return s.ErrToReturn
 }
-
-// UpdateDataSource 實作 Store 介面的 UpdateDataSource 方法
 func (s *MockStore) UpdateDataSource(ctx context.Context, id string, ds *models.DataSource) error {
-	// 模擬成功更新
-	return nil
+	return s.ErrToReturn
+}
+func (s *MockStore) DeleteDataSource(ctx context.Context, id string) error {
+	return s.ErrToReturn
 }
 
-// DeleteDataSource 實作 Store 介面的 DeleteDataSource 方法
-func (s *MockStore) DeleteDataSource(ctx context.Context, id string) error {
-	// 模擬成功刪除
-	return nil
+// --- ReportDefinition Methods (Placeholders) ---
+func (s *MockStore) GetReportDefinitions(ctx context.Context) ([]models.ReportDefinition, error) {
+	if s.ErrToReturn != nil {
+		return nil, s.ErrToReturn
+	}
+	return []models.ReportDefinition{}, nil
+}
+func (s *MockStore) GetReportDefinitionByID(ctx context.Context, id string) (*models.ReportDefinition, error) {
+	if s.ErrToReturn != nil {
+		return nil, s.ErrToReturn
+	}
+	return &models.ReportDefinition{ID: id}, nil
+}
+func (s *MockStore) CreateReportDefinition(ctx context.Context, rd *models.ReportDefinition) error {
+	return s.ErrToReturn
+}
+func (s *MockStore) UpdateReportDefinition(ctx context.Context, id string, rd *models.ReportDefinition) error {
+	return s.ErrToReturn
+}
+func (s *MockStore) DeleteReportDefinition(ctx context.Context, id string) error {
+	return s.ErrToReturn
+}
+
+// --- Schedule Methods ---
+func (s *MockStore) GetSchedules(ctx context.Context) ([]models.Schedule, error) {
+	if s.ErrToReturn != nil {
+		return nil, s.ErrToReturn
+	}
+	if s.SchedulesToReturn != nil {
+		return s.SchedulesToReturn, nil
+	}
+	return []models.Schedule{}, nil
+}
+func (s *MockStore) GetScheduleByID(ctx context.Context, id string) (*models.Schedule, error) {
+	if s.ErrToReturn != nil {
+		return nil, s.ErrToReturn
+	}
+	for _, schedule := range s.SchedulesToReturn {
+		if schedule.ID == id {
+			return &schedule, nil
+		}
+	}
+	return nil, nil // Not found
+}
+func (s *MockStore) CreateSchedule(ctx context.Context, sc *models.Schedule) error {
+	return s.ErrToReturn
+}
+func (s *MockStore) UpdateSchedule(ctx context.Context, id string, sc *models.Schedule) error {
+	return s.ErrToReturn
+}
+func (s *MockStore) DeleteSchedule(ctx context.Context, id string) error {
+	return s.ErrToReturn
 }
