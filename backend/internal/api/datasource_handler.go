@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"report-scheduler/backend/internal/models"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 )
 
 // GetDataSources 處理獲取所有資料來源的請求
@@ -16,7 +18,6 @@ import (
 // @Success 200 {array} models.DataSource
 // @Router /datasources [get]
 func GetDataSources(w http.ResponseWriter, r *http.Request) {
-	// 模擬的資料
 	mockDataSources := []models.DataSource{
 		{
 			ID:        "a3b8d4c2-6e7f-4b0a-9c1d-8e2f0a1b3c4d",
@@ -46,8 +47,6 @@ func GetDataSources(w http.ResponseWriter, r *http.Request) {
 // @Success 201 {object} map[string]string
 // @Router /datasources [post]
 func CreateDataSource(w http.ResponseWriter, r *http.Request) {
-	// 在實際應用中，我們會從 r.Body 解析請求內容
-	// 這裡只是一個模擬的回應
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]string{"message": "資料來源已成功建立"})
@@ -59,15 +58,16 @@ func CreateDataSource(w http.ResponseWriter, r *http.Request) {
 // @Tags datasources
 // @Accept  json
 // @Produce  json
-// @Param   id   path    string  true  "資料來源 ID"
+// @Param   datasourceID   path    string  true  "資料來源 ID"
 // @Success 200 {object} models.DataSource
-// @Router /datasources/{id} [get]
+// @Router /datasources/{datasourceID} [get]
 func GetDataSourceByID(w http.ResponseWriter, r *http.Request) {
-	// 在實際應用中，我們會從 URL 路徑中解析 id
-	id := "a3b8d4c2-6e7f-4b0a-9c1d-8e2f0a1b3c4d" // 模擬的 ID
+	// 從 chi 的 URL 參數中獲取 ID
+	id := chi.URLParam(r, "datasourceID")
+
 	mockDataSource := models.DataSource{
-		ID:        id,
-		Name:      "公司正式環境 Kibana",
+		ID:        id, // 使用從 URL 來的 ID
+		Name:      "公司正式環境 Kibana (ID: " + id + ")", // 在名稱中也反映 ID
 		Type:      models.Kibana,
 		URL:       "https://kibana.mycompany.com",
 		APIURL:    "https://kibana.mycompany.com/api",
@@ -88,14 +88,15 @@ func GetDataSourceByID(w http.ResponseWriter, r *http.Request) {
 // @Tags datasources
 // @Accept  json
 // @Produce  json
-// @Param   id   path    string  true  "資料來源 ID"
+// @Param   datasourceID   path    string  true  "資料來源 ID"
 // @Param   datasource body models.DataSource true "資料來源資訊"
 // @Success 200 {object} map[string]string
-// @Router /datasources/{id} [put]
+// @Router /datasources/{datasourceID} [put]
 func UpdateDataSource(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "datasourceID")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "資料來源已成功更新"})
+	json.NewEncoder(w).Encode(map[string]string{"message": "資料來源 " + id + " 已成功更新"})
 }
 
 // DeleteDataSource 處理刪除資料來源的請求
@@ -104,11 +105,12 @@ func UpdateDataSource(w http.ResponseWriter, r *http.Request) {
 // @Tags datasources
 // @Accept  json
 // @Produce  json
-// @Param   id   path    string  true  "資料來源 ID"
+// @Param   datasourceID   path    string  true  "資料來源 ID"
 // @Success 200 {object} map[string]string
-// @Router /datasources/{id} [delete]
+// @Router /datasources/{datasourceID} [delete]
 func DeleteDataSource(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "datasourceID")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "資料來源已成功刪除"})
+	json.NewEncoder(w).Encode(map[string]string{"message": "資料來源 " + id + " 已成功刪除"})
 }

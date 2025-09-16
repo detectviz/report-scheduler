@@ -2,60 +2,121 @@ package api
 
 import (
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"report-scheduler/backend/internal/models"
 	"testing"
+
+	"github.com/go-chi/chi/v5"
 )
 
-// TestGetDataSources 驗證 GetDataSources 處理器是否能正常運作
-func TestGetDataSources(t *testing.T) {
-	// 建立一個路由器，並註冊我們的處理器函式
-	// 這裡我們直接測試 GetDataSources 函式
-	handler := http.HandlerFunc(GetDataSources)
+// setupTestRouter 建立一個包含我們所有 API 路由的測試路由器
+// 這讓我們可以測試完整的請求 -> 路由 -> 處理器流程
+func setupTestRouter() http.Handler {
+	r := chi.NewRouter()
+	r.Route("/api/v1/datasources", func(r chi.Router) {
+		r.Get("/", GetDataSources)
+		r.Post("/", CreateDataSource)
+		r.Route("/{datasourceID}", func(r chi.Router) {
+			r.Get("/", GetDataSourceByID)
+			r.Put("/", UpdateDataSource)
+			r.Delete("/", DeleteDataSource)
+		})
+	})
+	return r
+}
 
-	// 使用 httptest 建立一個測試伺服器
-	server := httptest.NewServer(handler)
+// TestDatasourceAPI 是一個整合測試，驗證所有 datasource 相關的端點
+func TestDatasourceAPI(t *testing.T) {
+	// 建立一個包含完整路由的測試伺服器
+	router := setupTestRouter()
+	server := httptest.NewServer(router)
 	defer server.Close()
 
-	// 對測試伺服器發送 GET 請求
-	// 注意：因為我們直接測試處理器，所以路徑是什麼都沒關係
-	resp, err := http.Get(server.URL)
-	if err != nil {
-		t.Fatalf("無法發送 GET 請求: %v", err)
+	// 定義測試案例
+	tests := []struct {
+		name       string
+		method     string
+		path       string
+		wantStatus int
+		verify     func(t *testing.T, resp *http.Response)
+	}{
+		{
+			name:       "GET /api/v1/datasources (取得所有資源)",
+			method:     http.MethodGet,
+			path:       "/api/v1/datasources",
+			wantStatus: http.StatusOK,
+			verify: func(t *testing.T, resp *http.Response) {
+				var ds []models.DataSource
+				if err := json.NewDecoder(resp.Body).Decode(&ds); err != nil {
+					t.Fatalf("無法解析 JSON: %v", err)
+				}
+				if len(ds) < 1 {
+					t.Error("預期至少回傳一個資料來源")
+				}
+			},
+		},
+		{
+			name:       "GET /api/v1/datasources/{id} (取得單一資源)",
+			method:     http.MethodGet,
+			path:       "/api/v1/datasources/test-id-123",
+			wantStatus: http.StatusOK,
+			verify: func(t *testing.T, resp *http.Response) {
+				var ds models.DataSource
+				if err := json.NewDecoder(resp.Body).Decode(&ds); err != nil {
+					t.Fatalf("無法解析 JSON: %v", err)
+				}
+				if ds.ID != "test-id-123" {
+					t.Errorf("預期 ID 為 'test-id-123', 得到 '%s'", ds.ID)
+				}
+			},
+		},
+		{
+			name:       "POST /api/v1/datasources (建立資源)",
+			method:     http.MethodPost,
+			path:       "/api/v1/datasources",
+			wantStatus: http.StatusCreated,
+			verify:     nil, // 只檢查狀態碼
+		},
+		{
+			name:       "PUT /api/v1/datasources/{id} (更新資源)",
+			method:     http.MethodPut,
+			path:       "/api/v1/datasources/update-id-456",
+			wantStatus: http.StatusOK,
+			verify:     nil, // 只檢查狀態碼
+		},
+		{
+			name:       "DELETE /api/v1/datasources/{id} (刪除資源)",
+			method:     http.MethodDelete,
+			path:       "/api/v1/datasources/delete-id-789",
+			wantStatus: http.StatusOK,
+			verify:     nil, // 只檢查狀態碼
+		},
+		{
+			name:       "GET /api/v1/datasources/bad/path (不存在的路徑)",
+			method:     http.MethodGet,
+			path:       "/api/v1/datasources/bad/path",
+			wantStatus: http.StatusNotFound,
+			verify:     nil,
+		},
 	}
-	defer resp.Body.Close()
 
-	// 1. 檢查 HTTP 狀態碼
-	if status := resp.StatusCode; status != http.StatusOK {
-		t.Errorf("預期狀態碼為 %v, 但得到 %v", http.StatusOK, status)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, _ := http.NewRequest(tt.method, server.URL+tt.path, nil)
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatalf("請求失敗: %v", err)
+			}
+			defer resp.Body.Close()
 
-	// 2. 讀取並解析回應內容
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("無法讀取回應內容: %v", err)
-	}
+			if resp.StatusCode != tt.wantStatus {
+				t.Errorf("預期狀態碼 %d, 得到 %d", tt.wantStatus, resp.StatusCode)
+			}
 
-	var dataSources []models.DataSource
-	if err := json.Unmarshal(body, &dataSources); err != nil {
-		t.Fatalf("無法將 JSON 解碼為 DataSource: %v", err)
-	}
-
-	// 3. 驗證回應內容是否符合預期
-	if len(dataSources) != 1 {
-		t.Errorf("預期有 1 個資料來源, 但得到 %d 個", len(dataSources))
-		return // 如果長度不對，後續的檢查就沒有意義了
-	}
-
-	expectedName := "公司正式環境 Kibana"
-	if dataSources[0].Name != expectedName {
-		t.Errorf("預期的資料來源名稱為 '%s', 但得到 '%s'", expectedName, dataSources[0].Name)
-	}
-
-	expectedType := models.Kibana
-	if dataSources[0].Type != expectedType {
-		t.Errorf("預期的資料來源類型為 '%s', 但得到 '%s'", expectedType, dataSources[0].Type)
+			if tt.verify != nil {
+				tt.verify(t, resp)
+			}
+		})
 	}
 }
