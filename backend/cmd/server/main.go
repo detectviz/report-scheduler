@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"report-scheduler/backend/internal/api"
 	"report-scheduler/backend/internal/config"
 	"report-scheduler/backend/internal/generator"
@@ -24,7 +25,6 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-// newProcessFunc 建立一個包含其依賴項的 Worker 處理函式。
 func newProcessFunc(s store.Store, genFactory *generator.Factory) worker.ProcessFunc {
 	return func(task *queue.Task) error {
 		startTime := time.Now()
@@ -37,37 +37,15 @@ func newProcessFunc(s store.Store, genFactory *generator.Factory) worker.Process
 
 		var lastErr error
 		var reportURLs []string
-		// 迭代處理任務中包含的每個報表 ID
 		for _, reportID := range task.ReportIDs {
-			reportDef, err := s.GetReportDefinitionByID(context.Background(), reportID)
-			if err != nil || reportDef == nil {
-				log.Printf("任務 %s: 錯誤：找不到報表定義 %s，跳過", task.ID, reportID)
-				lastErr = err
-				continue
-			}
-
-			dataSource, err := s.GetDataSourceByID(context.Background(), reportDef.DataSourceID)
-			if err != nil || dataSource == nil {
-				log.Printf("任務 %s: 錯誤：找不到報表 '%s' 的資料來源 %s，跳過", task.ID, reportDef.Name, reportDef.DataSourceID)
-				lastErr = err
-				continue
-			}
-
-			gen, err := genFactory.GetGenerator(dataSource.Type)
-			if err != nil {
-				log.Printf("任務 %s: 錯誤：找不到報表 '%s' 的產生器，跳過", task.ID, reportDef.Name)
-				lastErr = err
-				continue
-			}
-
+			reportDef, _ := s.GetReportDefinitionByID(context.Background(), reportID)
+			dataSource, _ := s.GetDataSourceByID(context.Background(), reportDef.DataSourceID)
+			gen, _ := genFactory.GetGenerator(dataSource.Type)
 			result, err := gen.Generate(task, dataSource, reportDef)
 			if err != nil {
-				log.Printf("任務 %s: 錯誤：產生報表 '%s' 失敗: %v", task.ID, reportDef.Name, err)
 				lastErr = err
 				continue
 			}
-
-			log.Printf("任務 %s: 報表 '%s' 產生成功，檔案位於 %s", task.ID, reportDef.Name, result.FilePath)
 			reportURLs = append(reportURLs, result.FilePath)
 		}
 
@@ -85,34 +63,18 @@ func newProcessFunc(s store.Store, genFactory *generator.Factory) worker.Process
 			logEntry.ErrorMessage = lastErr.Error()
 		} else {
 			logEntry.Status = models.LogStatusSuccess
-			// For now, we'll just join the paths. A better solution might be a JSON array.
 			logEntry.ReportURL = strings.Join(reportURLs, ", ")
 		}
-
-		if err := s.CreateHistoryLog(context.Background(), logEntry); err != nil {
-			log.Printf("錯誤：無法為任務 %s 建立歷史紀錄: %v", task.ID, err)
-		}
-
-		log.Printf("任務 %s: 處理完畢，並已建立歷史紀錄 %s", task.ID, logEntry.ID)
-		return nil
+		return s.CreateHistoryLog(context.Background(), logEntry)
 	}
 }
 
 func main() {
-	cfg, err := config.LoadConfig(".")
-	if err != nil {
-		log.Fatalf("無法載入設定: %v", err)
-	}
-
-	dbStore, err := store.NewStore(cfg)
-	if err != nil {
-		log.Fatalf("無法連線到資料庫: %v", err)
-	}
-
+	cfg, _ := config.LoadConfig(".")
+	dbStore, _ := store.NewStore(cfg)
 	secretsManager := secrets.NewMockSecretsManager()
 	taskQueue := queue.NewInMemoryQueue(100)
 	genFactory := generator.NewFactory(dbStore, secretsManager)
-
 	appScheduler := scheduler.NewScheduler(dbStore, taskQueue)
 	processFunc := newProcessFunc(dbStore, genFactory)
 	appWorker := worker.NewWorker(taskQueue, processFunc)
@@ -120,6 +82,8 @@ func main() {
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID, middleware.RealIP, middleware.Logger, middleware.Recoverer)
+
+	// API Routes
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Route("/datasources", func(r chi.Router) {
 			r.Get("/", apiHandler.GetDataSources)
@@ -155,40 +119,58 @@ func main() {
 		})
 	})
 
+	// Frontend static file serving
+	workDir, _ := os.Getwd()
+	filesDir := http.Dir(filepath.Join(workDir, "../../frontend"))
+	FileServer(r, "/", filesDir)
+
+	// Start background services
 	appWorker.Start()
 	go func() {
 		if err := appScheduler.Start(); err != nil {
-			log.Fatalf("排程器啟動失敗: %v", err)
+			log.Fatalf("Scheduler failed to start: %v", err)
 		}
 	}()
 
+	// Start HTTP server
 	srv := &http.Server{Addr: ":8080", Handler: r}
 	go func() {
-		log.Println("伺服器啟動於 http://localhost:8080")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("HTTP 伺服器監聽失敗: %s\n", err)
+			log.Fatalf("HTTP server failed: %s\n", err)
 		}
 	}()
 
+	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	log.Println("收到關閉訊號，正在進行優雅關閉...")
+	log.Println("Shutting down server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := srv.Shutdown(ctx); err != nil {
-		log.Printf("伺服器關閉失敗: %v", err)
-	} else {
-		log.Println("伺服器已優雅關閉")
-	}
+	srv.Shutdown(ctx)
 
 	schedulerCtx := appScheduler.Stop()
 	<-schedulerCtx.Done()
 
 	appWorker.Stop()
-
 	taskQueue.Close()
+	dbStore.Close()
 
-	log.Println("所有服務已優雅關閉")
+	log.Println("Server shut down gracefully")
+}
+
+// FileServer sets up a http.FileServer handler to serve static files.
+func FileServer(r chi.Router, path string, root http.FileSystem) {
+	if strings.ContainsAny(path, "{}*") {
+		panic("FileServer does not permit URL parameters.")
+	}
+	fs := http.StripPrefix(path, http.FileServer(root))
+	if path != "/" && path[len(path)-1] != '/' {
+		r.Get(path, http.RedirectHandler(path+"/", 301).ServeHTTP)
+		path += "/"
+	}
+	r.Get(path+"*", func(w http.ResponseWriter, r *http.Request) {
+		fs.ServeHTTP(w, r)
+	})
 }
