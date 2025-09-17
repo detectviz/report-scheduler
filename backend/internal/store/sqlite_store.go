@@ -48,6 +48,7 @@ func (s *SqliteStore) initSchema() error {
 		url TEXT NOT NULL,
 		api_url TEXT,
 		auth_type TEXT NOT NULL,
+		credentials_ref TEXT,
 		version TEXT,
 		status TEXT NOT NULL,
 		created_at TIMESTAMP NOT NULL,
@@ -119,15 +120,15 @@ func (s *SqliteStore) CreateDataSource(ctx context.Context, ds *models.DataSourc
 	ds.CreatedAt = time.Now()
 	ds.UpdatedAt = time.Now()
 
-	query := `INSERT INTO datasources (id, name, type, url, api_url, auth_type, version, status, created_at, updated_at)
-			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	query := `INSERT INTO datasources (id, name, type, url, api_url, auth_type, credentials_ref, version, status, created_at, updated_at)
+			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
-	_, err := s.db.ExecContext(ctx, query, ds.ID, ds.Name, ds.Type, ds.URL, ds.APIURL, ds.AuthType, ds.Version, ds.Status, ds.CreatedAt, ds.UpdatedAt)
+	_, err := s.db.ExecContext(ctx, query, ds.ID, ds.Name, ds.Type, ds.URL, ds.APIURL, ds.AuthType, ds.CredentialsRef, ds.Version, ds.Status, ds.CreatedAt, ds.UpdatedAt)
 	return err
 }
 
 func (s *SqliteStore) GetDataSources(ctx context.Context) ([]models.DataSource, error) {
-	query := `SELECT id, name, type, url, api_url, auth_type, version, status, created_at, updated_at FROM datasources`
+	query := `SELECT id, name, type, url, api_url, auth_type, credentials_ref, version, status, created_at, updated_at FROM datasources`
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -137,7 +138,7 @@ func (s *SqliteStore) GetDataSources(ctx context.Context) ([]models.DataSource, 
 	var dataSources []models.DataSource
 	for rows.Next() {
 		var ds models.DataSource
-		if err := rows.Scan(&ds.ID, &ds.Name, &ds.Type, &ds.URL, &ds.APIURL, &ds.AuthType, &ds.Version, &ds.Status, &ds.CreatedAt, &ds.UpdatedAt); err != nil {
+		if err := rows.Scan(&ds.ID, &ds.Name, &ds.Type, &ds.URL, &ds.APIURL, &ds.AuthType, &ds.CredentialsRef, &ds.Version, &ds.Status, &ds.CreatedAt, &ds.UpdatedAt); err != nil {
 			return nil, err
 		}
 		dataSources = append(dataSources, ds)
@@ -146,11 +147,11 @@ func (s *SqliteStore) GetDataSources(ctx context.Context) ([]models.DataSource, 
 }
 
 func (s *SqliteStore) GetDataSourceByID(ctx context.Context, id string) (*models.DataSource, error) {
-	query := `SELECT id, name, type, url, api_url, auth_type, version, status, created_at, updated_at FROM datasources WHERE id = ?`
+	query := `SELECT id, name, type, url, api_url, auth_type, credentials_ref, version, status, created_at, updated_at FROM datasources WHERE id = ?`
 	row := s.db.QueryRowContext(ctx, query, id)
 
 	var ds models.DataSource
-	err := row.Scan(&ds.ID, &ds.Name, &ds.Type, &ds.URL, &ds.APIURL, &ds.AuthType, &ds.Version, &ds.Status, &ds.CreatedAt, &ds.UpdatedAt)
+	err := row.Scan(&ds.ID, &ds.Name, &ds.Type, &ds.URL, &ds.APIURL, &ds.AuthType, &ds.CredentialsRef, &ds.Version, &ds.Status, &ds.CreatedAt, &ds.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil // 找不到時回傳 nil, nil，讓 handler 處理 404
@@ -162,8 +163,8 @@ func (s *SqliteStore) GetDataSourceByID(ctx context.Context, id string) (*models
 
 func (s *SqliteStore) UpdateDataSource(ctx context.Context, id string, ds *models.DataSource) error {
     ds.UpdatedAt = time.Now()
-	query := `UPDATE datasources SET name = ?, type = ?, url = ?, api_url = ?, auth_type = ?, version = ?, status = ?, updated_at = ? WHERE id = ?`
-	_, err := s.db.ExecContext(ctx, query, ds.Name, ds.Type, ds.URL, ds.APIURL, ds.AuthType, ds.Version, ds.Status, ds.UpdatedAt, id)
+	query := `UPDATE datasources SET name = ?, type = ?, url = ?, api_url = ?, auth_type = ?, credentials_ref = ?, version = ?, status = ?, updated_at = ? WHERE id = ?`
+	_, err := s.db.ExecContext(ctx, query, ds.Name, ds.Type, ds.URL, ds.APIURL, ds.AuthType, ds.CredentialsRef, ds.Version, ds.Status, ds.UpdatedAt, id)
 	return err
 }
 

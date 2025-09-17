@@ -1,14 +1,17 @@
 package models
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // DataSourceType 代表資料來源的類型
 type DataSourceType string
 
 const (
-	Kibana        DataSourceType = "kibana"
-	Grafana       DataSourceType = "grafana"
-	Elasticsearch DataSourceType = "elasticsearch"
+	Kibana  DataSourceType = "kibana"
+	Grafana DataSourceType = "grafana"
+	// Elasticsearch is no longer a separate type, it's part of Kibana
 )
 
 // AuthType 代表認證方式
@@ -29,17 +32,30 @@ const (
 )
 
 // DataSource 對應到資料庫中的 datasources 資料表
-// 這是系統中用來連線到外部 BI 系統的設定
 type DataSource struct {
 	ID             string           `json:"id"`
 	Name           string           `json:"name"`
 	Type           DataSourceType   `json:"type"`
 	URL            string           `json:"url"`
-	APIURL         string           `json:"api_url,omitempty"` // 根據規格，此欄位應為 api_url
+	APIURL         string           `json:"api_url,omitempty"`
 	AuthType       AuthType         `json:"auth_type"`
-	CredentialsRef string           `json:"-"` // 這個欄位是安全的參考，不應該在 JSON 中傳輸
-	Version        string           `json:"version,omitempty"` // omitempty 表示如果為空值，JSON 中就省略此欄位
+	CredentialsRef string           `json:"credentials_ref,omitempty"` // Allow reading from JSON, but will be hidden on write
+	Version        string           `json:"version,omitempty"`
 	Status         ConnectionStatus `json:"status"`
 	CreatedAt      time.Time        `json:"created_at"`
 	UpdatedAt      time.Time        `json:"updated_at"`
+}
+
+// MarshalJSON is a custom marshaller for DataSource to hide sensitive fields.
+func (ds DataSource) MarshalJSON() ([]byte, error) {
+	// Use a type alias to avoid an infinite loop
+	type Alias DataSource
+
+	// Create a new struct that omits the sensitive field
+	return json.Marshal(&struct {
+		Alias
+		CredentialsRef string `json:"credentials_ref,omitempty"` // This will be omitted because it's the zero value
+	}{
+		Alias: (Alias)(ds),
+	})
 }
