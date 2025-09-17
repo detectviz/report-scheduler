@@ -93,3 +93,8 @@ func (s *MockStore) UpdateSchedule(ctx context.Context, id string, sc *models.Sc
 func (s *MockStore) DeleteSchedule(ctx context.Context, id string) error {
 	return s.ErrToReturn
 }
+
+// Close is a no-op for the mock store.
+func (s *MockStore) Close() error {
+	return nil
+}

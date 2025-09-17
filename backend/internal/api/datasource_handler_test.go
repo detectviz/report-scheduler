@@ -19,13 +19,11 @@ import (
 // newTestHandler 建立一個使用真實 SqliteStore 的測試路由器。
 // 它會回傳一個 http.Handler 和一個用於清理暫存資料庫的函式。
 func newTestHandler(t *testing.T) (http.Handler, func()) {
-	// 建立一個暫存目錄來存放測試資料庫
 	tempDir, err := ioutil.TempDir("", "test-db-")
 	require.NoError(t, err)
 
 	dbPath := tempDir + "/test.db"
 
-	// 為測試建立一個暫時的設定
 	testCfg := config.Config{
 		Database: config.DBConfig{
 			Type: "sqlite",
@@ -33,17 +31,14 @@ func newTestHandler(t *testing.T) (http.Handler, func()) {
 		},
 	}
 
-	// 透過工廠函式初始化 store
 	dbStore, err := store.NewStore(testCfg)
 	require.NoError(t, err)
 
-	// 設定 handler 和 router
 	apiHandler := NewAPIHandler(dbStore)
 	r := chi.NewRouter()
 
-	// 這裡的路由設定應該要跟 main.go 完全一樣，以確保測試的準確性
+	// 路由設定必須跟 main.go 完全一樣
 	r.Route("/api/v1", func(r chi.Router) {
-		// Datasources 路由
 		r.Route("/datasources", func(r chi.Router) {
 			r.Get("/", apiHandler.GetDataSources)
 			r.Post("/", apiHandler.CreateDataSource)
@@ -53,8 +48,6 @@ func newTestHandler(t *testing.T) (http.Handler, func()) {
 				r.Delete("/", apiHandler.DeleteDataSource)
 			})
 		})
-
-		// Report Definitions 路由
 		r.Route("/reports", func(r chi.Router) {
 			r.Get("/", apiHandler.GetReportDefinitions)
 			r.Post("/", apiHandler.CreateReportDefinition)
@@ -64,8 +57,6 @@ func newTestHandler(t *testing.T) (http.Handler, func()) {
 				r.Delete("/", apiHandler.DeleteReportDefinition)
 			})
 		})
-
-		// Schedules 路由
 		r.Route("/schedules", func(r chi.Router) {
 			r.Get("/", apiHandler.GetSchedules)
 			r.Post("/", apiHandler.CreateSchedule)
@@ -77,8 +68,8 @@ func newTestHandler(t *testing.T) (http.Handler, func()) {
 		})
 	})
 
-	// 清理函式，用於在測試結束後刪除暫存目錄
 	cleanup := func() {
+		dbStore.Close()
 		os.RemoveAll(tempDir)
 	}
 

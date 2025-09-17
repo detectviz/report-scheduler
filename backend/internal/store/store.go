@@ -35,6 +35,9 @@ type Store interface {
 	CreateSchedule(ctx context.Context, s *models.Schedule) error
 	UpdateSchedule(ctx context.Context, id string, s *models.Schedule) error
 	DeleteSchedule(ctx context.Context, id string) error
+
+	// Close 關閉與資料庫的連線
+	Close() error
 }
 
 // NewStore 是資料儲存層的工廠函式。

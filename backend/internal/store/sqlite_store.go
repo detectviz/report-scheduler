@@ -156,6 +156,11 @@ func (s *SqliteStore) DeleteDataSource(ctx context.Context, id string) error {
 	return err
 }
 
+// Close 關閉資料庫連線
+func (s *SqliteStore) Close() error {
+	return s.db.Close()
+}
+
 // --- Schedule Methods ---
 
 func (s *SqliteStore) CreateSchedule(ctx context.Context, sc *models.Schedule) error {

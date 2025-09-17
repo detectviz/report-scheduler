@@ -3,22 +3,26 @@ package scheduler
 import (
 	"context"
 	"log"
+	"report-scheduler/backend/internal/queue"
 	"report-scheduler/backend/internal/store"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
 )
 
 // Scheduler 管理所有排程任務
 type Scheduler struct {
 	Store store.Store
+	Queue queue.Queue
 	cron  *cron.Cron
 }
 
 // NewScheduler 建立一個新的 Scheduler 實例
-func NewScheduler(s store.Store) *Scheduler {
-	// 使用 WithSeconds() 可以支援秒級的 cron 設定，更靈活
+func NewScheduler(s store.Store, q queue.Queue) *Scheduler {
 	return &Scheduler{
 		Store: s,
+		Queue: q,
 		cron:  cron.New(cron.WithSeconds()),
 	}
 }
@@ -37,12 +41,19 @@ func (s *Scheduler) Start() error {
 	log.Printf("找到 %d 個排程準備加入...", len(schedules))
 	for _, schedule := range schedules {
 		if schedule.IsEnabled {
-			// 使用一個閉包來捕獲每個 schedule 的副本，這很重要！
-			// 否則，所有任務都會引用最後一個 schedule 的值。
-			sch := schedule
+			sch := schedule // 使用閉包捕獲 schedule 的副本
 			entryID, err := s.cron.AddFunc(sch.CronSpec, func() {
-				log.Printf("觸發排程: %s (ID: %s)", sch.Name, sch.ID)
-				// 在未來的步驟中，這裡會將任務推送到 Task Queue
+				// 當 cron 任務觸發時，建立一個 Task 並將其推入佇列
+				task := &queue.Task{
+					ID:         uuid.New().String(),
+					ScheduleID: sch.ID,
+					ReportIDs:  sch.ReportIDs,
+					CreatedAt:  time.Now(),
+				}
+				log.Printf("觸發排程: %s (ID: %s), 正在將任務 %s 推入佇列...", sch.Name, sch.ID, task.ID)
+				if err := s.Queue.Enqueue(context.Background(), task); err != nil {
+					log.Printf("錯誤：無法將任務 %s 推入佇列: %v", task.ID, err)
+				}
 			})
 			if err != nil {
 				log.Printf("錯誤：無法新增排程 '%s' (ID: %s): %v", sch.Name, sch.ID, err)
