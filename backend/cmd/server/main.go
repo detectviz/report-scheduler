@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -22,31 +23,49 @@ import (
 )
 
 // newProcessFunc 建立一個包含其依賴項（如 store）的 Worker 處理函式。
-// 透過閉包，我們可以將應用程式等級的依賴注入到 Worker 的處理邏輯中。
 func newProcessFunc(s store.Store) worker.ProcessFunc {
 	return func(task *queue.Task) error {
 		startTime := time.Now()
-		log.Printf("開始處理報表任務 %s, 來自排程 %s", task.ID, task.ScheduleID)
+		log.Printf("任務 %s: 開始處理 (來自排程 %s)", task.ID, task.ScheduleID)
 
-		// 為了記錄完整的歷史，我們需要從資料庫獲取排程的詳細資訊
+		// 1. 獲取排程詳細資訊
 		schedule, err := s.GetScheduleByID(context.Background(), task.ScheduleID)
 		if err != nil {
 			// 如果連排程都找不到，這是一個嚴重的問題，但我們還是要記錄下來
-			log.Printf("錯誤：處理任務 %s 時找不到對應的排程 %s: %v", task.ID, task.ScheduleID, err)
-			// 也可以在這裡建立一筆失敗的歷史紀錄
-			return err
+			// TODO: 建立一筆失敗的歷史紀錄
+			return fmt.Errorf("處理任務 %s 時找不到對應的排程 %s: %w", task.ID, task.ScheduleID, err)
 		}
 		if schedule == nil {
-			log.Printf("錯誤：處理任務 %s 時找不到對應的排程 %s", task.ID, task.ScheduleID)
-			return nil
+			return fmt.Errorf("處理任務 %s 時找不到對應的排程 %s", task.ID, task.ScheduleID)
 		}
 
-		// TODO: 在這裡實作真正的報表產生邏輯
-		time.Sleep(2 * time.Second) // 模擬耗時的工作
+		// 2. 迭代處理任務中包含的每個報表 ID
+		for _, reportID := range task.ReportIDs {
+			log.Printf("任務 %s: 正在處理報表 ID: %s", task.ID, reportID)
 
+			// 3. 獲取報表定義
+			reportDef, err := s.GetReportDefinitionByID(context.Background(), reportID)
+			if err != nil || reportDef == nil {
+				log.Printf("任務 %s: 錯誤：找不到報表定義 %s，跳過此報表", task.ID, reportID)
+				continue // 跳過這個報表，繼續處理下一個
+			}
+
+			// 4. 獲取資料來源定義
+			dataSource, err := s.GetDataSourceByID(context.Background(), reportDef.DataSourceID)
+			if err != nil || dataSource == nil {
+				log.Printf("任務 %s: 錯誤：找不到報表 '%s' 的資料來源 %s，跳過此報表", task.ID, reportDef.Name, reportDef.DataSourceID)
+				continue
+			}
+
+			log.Printf("任務 %s: 成功載入報表 '%s' 和資料來源 '%s'。準備進行擷取...", task.ID, reportDef.Name, dataSource.Name)
+			// TODO: 在此處實作與外部服務的互動 (擷取、寄送等)
+		}
+
+		// 3. 模擬耗時的工作
+		time.Sleep(1 * time.Second)
 		duration := time.Since(startTime)
 
-		// 建立歷史紀錄
+		// 4. 建立歷史紀錄
 		logEntry := &models.HistoryLog{
 			ScheduleID:        task.ScheduleID,
 			ScheduleName:      schedule.Name,
@@ -54,15 +73,14 @@ func newProcessFunc(s store.Store) worker.ProcessFunc {
 			ExecutionDuration: duration.Milliseconds(),
 			Status:            models.LogStatusSuccess,
 			Recipients:        schedule.Recipients,
-			// ReportURL: "...", // 報表產生後會有 URL
 		}
 
 		if err := s.CreateHistoryLog(context.Background(), logEntry); err != nil {
+			// 即使歷史紀錄建立失敗，也不應該讓整個任務失敗，僅記錄錯誤
 			log.Printf("錯誤：無法為任務 %s 建立歷史紀錄: %v", task.ID, err)
-			return err
 		}
 
-		log.Printf("成功處理完報表任務 %s，並已建立歷史紀錄 %s", task.ID, logEntry.ID)
+		log.Printf("任務 %s: 成功處理完畢，並已建立歷史紀錄 %s", task.ID, logEntry.ID)
 		return nil
 	}
 }
@@ -89,7 +107,7 @@ func main() {
 	// 5. 建立排程器服務
 	appScheduler := scheduler.NewScheduler(dbStore, taskQueue)
 
-	// 6. 建立 Worker 服務，並傳入真正的處理函式
+	// 6. 建立 Worker 服務
 	processFunc := newProcessFunc(dbStore)
 	appWorker := worker.NewWorker(taskQueue, processFunc)
 
