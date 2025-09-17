@@ -3,22 +3,24 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"report-scheduler/backend/internal/queue"
 	"report-scheduler/backend/internal/secrets"
 	"report-scheduler/backend/internal/store"
 )
 
-// APIHandler 是一個包含所有應用程式依賴的結構，例如資料庫 store 和憑證管理器。
-// 所有的 HTTP 處理器都將是這個結構的方法。
+// APIHandler 是一個包含所有應用程式依賴的結構
 type APIHandler struct {
 	Store   store.Store
 	Secrets secrets.SecretsManager
+	Queue   queue.Queue
 }
 
 // NewAPIHandler 建立並回傳一個新的 APIHandler
-func NewAPIHandler(s store.Store, sm secrets.SecretsManager) *APIHandler {
+func NewAPIHandler(s store.Store, sm secrets.SecretsManager, q queue.Queue) *APIHandler {
 	return &APIHandler{
 		Store:   s,
 		Secrets: sm,
+		Queue:   q,
 	}
 }
 

@@ -12,7 +12,7 @@ import (
 )
 
 func TestReportAPI_WithRealDB(t *testing.T) {
-	handler, _, cleanup := newTestHandler(t)
+	handler, _, _, cleanup := newTestHandler(t)
 	defer cleanup()
 
 	server := httptest.NewServer(handler)

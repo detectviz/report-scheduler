@@ -52,9 +52,9 @@
 | :--- | :--- | :--- | :--- |
 | `id` | `UUID` | 唯一識別碼 | `a3b8d4c2-6e7f-4b0a-9c1d-8e2f0a1b3c4d` |
 | `name` | `String` | 資料來源顯示名稱 | `公司正式環境 Kibana` |
-| `type` | `Enum` | 類型 | `kibana`, `grafana`, `elasticsearch` |
-| `url` | `String` | 系統主頁面 URL | `https://kibana.mycompany.com` |
-| `api_url` | `String` | 對應的 API Endpoint | `https://kibana.mycompany.com/api` |
+| `type` | `Enum` | 類型。主要分為 `kibana` 和 `grafana`。 | `kibana` |
+| `url` | `String` | **主要 UI 介面位址。** 對於 `kibana` 類型，這裡是 Kibana 的 URL。 | `https://kibana.mycompany.com` |
+| `api_url`| `String` | **對應的後端 API 端點。** 對於 `kibana` 類型，這裡是其對應的 **Elasticsearch API URL**，用於 CSV/Excel 匯出。 | `https://es.mycompany.com:9200` |
 | `auth_type` | `Enum` | 認證方式 | `basic_auth`, `api_token` |
 | `credentials_ref` | `String` | **[安全]** 指向 Vault Secret 的路徑 | `kv/report-scheduler/kibana-prod` |
 | `version` | `String` | **[選填]** 對應系統版本 | `8.5.1` |

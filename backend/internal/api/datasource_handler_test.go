@@ -9,6 +9,7 @@ import (
 	"os"
 	"report-scheduler/backend/internal/config"
 	"report-scheduler/backend/internal/models"
+	"report-scheduler/backend/internal/queue"
 	"report-scheduler/backend/internal/secrets"
 	"report-scheduler/backend/internal/store"
 	"testing"
@@ -18,8 +19,8 @@ import (
 )
 
 // newTestHandler 建立一個使用真實 SqliteStore 的測試路由器。
-// 它會回傳一個 http.Handler、一個 store 實例和一個用於清理的函式。
-func newTestHandler(t *testing.T) (http.Handler, store.Store, func()) {
+// 它會回傳一個 http.Handler、一個 store 實例、一個 queue 實例和一個用於清理的函式。
+func newTestHandler(t *testing.T) (http.Handler, store.Store, queue.Queue, func()) {
 	tempDir, err := ioutil.TempDir("", "test-db-")
 	require.NoError(t, err)
 
@@ -36,8 +37,9 @@ func newTestHandler(t *testing.T) (http.Handler, store.Store, func()) {
 	require.NoError(t, err)
 
 	secretsManager := secrets.NewMockSecretsManager()
+	taskQueue := queue.NewInMemoryQueue(10)
 
-	apiHandler := NewAPIHandler(dbStore, secretsManager)
+	apiHandler := NewAPIHandler(dbStore, secretsManager, taskQueue)
 	r := chi.NewRouter()
 
 	// 路由設定必須跟 main.go 完全一樣
@@ -68,6 +70,7 @@ func newTestHandler(t *testing.T) (http.Handler, store.Store, func()) {
 				r.Get("/", apiHandler.GetScheduleByID)
 				r.Put("/", apiHandler.UpdateSchedule)
 				r.Delete("/", apiHandler.DeleteSchedule)
+				r.Post("/trigger", apiHandler.TriggerSchedule)
 			})
 		})
 
@@ -78,15 +81,16 @@ func newTestHandler(t *testing.T) (http.Handler, store.Store, func()) {
 	})
 
 	cleanup := func() {
+		taskQueue.Close()
 		dbStore.Close()
 		os.RemoveAll(tempDir)
 	}
 
-	return r, dbStore, cleanup
+	return r, dbStore, taskQueue, cleanup
 }
 
 func TestDatasourceAPI_WithRealDB(t *testing.T) {
-	handler, _, cleanup := newTestHandler(t)
+	handler, _, _, cleanup := newTestHandler(t)
 	defer cleanup()
 
 	server := httptest.NewServer(handler)

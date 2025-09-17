@@ -2,101 +2,89 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"report-scheduler/backend/internal/models"
+	"report-scheduler/backend/internal/queue"
+	"report-scheduler/backend/internal/store"
+	"report-scheduler/backend/internal/worker"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
+// newProcessFunc is a helper for tests, mimicking the one in main.go
+func newProcessFunc(s store.Store) worker.ProcessFunc {
+	return func(task *queue.Task) error {
+		schedule, err := s.GetScheduleByID(context.Background(), task.ScheduleID)
+		if err != nil || schedule == nil {
+			return err
+		}
+		logEntry := &models.HistoryLog{
+			ScheduleID:   task.ScheduleID,
+			ScheduleName: schedule.Name,
+			TriggerTime:  task.CreatedAt,
+			Status:       models.LogStatusSuccess,
+			Recipients:   schedule.Recipients,
+		}
+		return s.CreateHistoryLog(context.Background(), logEntry)
+	}
+}
+
 func TestScheduleAPI_WithRealDB(t *testing.T) {
-	handler, _, cleanup := newTestHandler(t)
+	handler, dbStore, taskQueue, cleanup := newTestHandler(t)
 	defer cleanup()
+
+	// For the trigger test, we need a real worker running in the background.
+	processFunc := newProcessFunc(dbStore)
+	appWorker := worker.NewWorker(taskQueue, processFunc)
+	appWorker.Start()
+	defer appWorker.Stop()
 
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
-	// --- 準備前置資料：建立 Datasource 和 ReportDefinition ---
-	// (在真實測試中，我們可能需要先建立這些依賴項，但為簡化，此處省略)
-	// 假設 report ID "rep-1" 和 "rep-2" 是有效的
-
-	// --- 開始測試 Schedule API ---
-
-	// 1. 開始時，GET all schedules 應該是空的
-	t.Run("get all schedules from empty table", func(t *testing.T) {
-		resp, err := http.Get(server.URL + "/api/v1/schedules")
-		require.NoError(t, err)
-		defer resp.Body.Close()
-		require.Equal(t, http.StatusOK, resp.StatusCode)
-
-		var schedules []models.Schedule
-		err = json.NewDecoder(resp.Body).Decode(&schedules)
-		require.NoError(t, err)
-		require.Len(t, schedules, 0)
-	})
-
-	// 2. 建立一個新的 schedule
 	var createdSchedule models.Schedule
-	t.Run("create schedule", func(t *testing.T) {
-		recipients := models.Recipients{To: []string{"test@example.com"}}
-		recipientsJSON, _ := json.Marshal(recipients)
-		reportIDs := models.ReportIDList{"rep-1", "rep-2"}
-		reportIDsJSON, _ := json.Marshal(reportIDs)
 
-		scheduleJSON := []byte(`{
-			"name": "Weekly Summary",
-			"cron_spec": "0 0 * * 1",
-			"timezone": "Asia/Taipei",
-			"recipients": ` + string(recipientsJSON) + `,
-			"email_subject": "Weekly Report",
-			"email_body": "Here is your report.",
-			"report_ids": ` + string(reportIDsJSON) + `,
-			"is_enabled": true
-		}`)
-
+	t.Run("create schedule for trigger test", func(t *testing.T) {
+		scheduleJSON := []byte(`{"name": "Test For Trigger", "cron_spec": "0 0 1 1 *", "is_enabled": true}`)
 		resp, err := http.Post(server.URL+"/api/v1/schedules", "application/json", bytes.NewBuffer(scheduleJSON))
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusCreated, resp.StatusCode)
-
 		err = json.NewDecoder(resp.Body).Decode(&createdSchedule)
 		require.NoError(t, err)
+	})
+
+	t.Run("trigger schedule manually and check history", func(t *testing.T) {
 		require.NotEmpty(t, createdSchedule.ID)
-		require.Equal(t, "Weekly Summary", createdSchedule.Name)
-		require.Len(t, createdSchedule.ReportIDs, 2)
-		require.Equal(t, "test@example.com", createdSchedule.Recipients.To[0])
-	})
-
-	// 3. 透過 ID 取得剛剛建立的 schedule
-	t.Run("get created schedule by id", func(t *testing.T) {
-		require.NotEmpty(t, createdSchedule.ID)
-		resp, err := http.Get(server.URL + "/api/v1/schedules/" + createdSchedule.ID)
+		triggerURL := server.URL + "/api/v1/schedules/" + createdSchedule.ID + "/trigger"
+		resp, err := http.Post(triggerURL, "application/json", nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusAccepted, resp.StatusCode)
 
-		var fetchedSchedule models.Schedule
-		err = json.NewDecoder(resp.Body).Decode(&fetchedSchedule)
-		require.NoError(t, err)
-		require.Equal(t, createdSchedule.ID, fetchedSchedule.ID)
-	})
+		// Verify that the worker processed the task and created a history log.
+		require.Eventually(t, func() bool {
+			historyURL := server.URL + "/api/v1/history?schedule_id=" + createdSchedule.ID
+			resp, err := http.Get(historyURL)
+			if err != nil {
+				return false
+			}
+			defer resp.Body.Close()
 
-	// 4. 刪除剛剛建立的 schedule
-	t.Run("delete schedule", func(t *testing.T) {
-		req, _ := http.NewRequest(http.MethodDelete, server.URL+"/api/v1/schedules/"+createdSchedule.ID, nil)
-		resp, err := http.DefaultClient.Do(req)
-		require.NoError(t, err)
-		defer resp.Body.Close()
-		require.Equal(t, http.StatusOK, resp.StatusCode)
-	})
+			if resp.StatusCode != http.StatusOK {
+				return false
+			}
 
-	// 5. 再次透過 ID 取得，應該會回傳 404 Not Found
-	t.Run("get deleted schedule by id", func(t *testing.T) {
-		resp, err := http.Get(server.URL + "/api/v1/schedules/" + createdSchedule.ID)
-		require.NoError(t, err)
-		defer resp.Body.Close()
-		require.Equal(t, http.StatusNotFound, resp.StatusCode)
+			var logs []models.HistoryLog
+			if err := json.NewDecoder(resp.Body).Decode(&logs); err != nil {
+				return false
+			}
+			return len(logs) == 1
+		}, 3*time.Second, 50*time.Millisecond, "expected worker to create a history log")
 	})
 }

@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"report-scheduler/backend/internal/models"
+	"report-scheduler/backend/internal/queue"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 // --- Schedule Handler Methods ---
@@ -76,4 +79,36 @@ func (h *APIHandler) DeleteSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.respondWithJSON(w, http.StatusOK, map[string]string{"message": "排程 " + id + " 已成功刪除"})
+}
+
+// TriggerSchedule 手動觸發一次排程
+func (h *APIHandler) TriggerSchedule(w http.ResponseWriter, r *http.Request) {
+	scheduleID := chi.URLParam(r, "scheduleID")
+
+	schedule, err := h.Store.GetScheduleByID(r.Context(), scheduleID)
+	if err != nil {
+		h.respondWithError(w, http.StatusInternalServerError, "無法獲取排程: "+err.Error())
+		return
+	}
+	if schedule == nil {
+		h.respondWithError(w, http.StatusNotFound, "找不到指定的排程")
+		return
+	}
+
+	task := &queue.Task{
+		ID:         uuid.New().String(),
+		ScheduleID: schedule.ID,
+		ReportIDs:  schedule.ReportIDs,
+		CreatedAt:  time.Now(),
+	}
+
+	if err := h.Queue.Enqueue(r.Context(), task); err != nil {
+		h.respondWithError(w, http.StatusInternalServerError, "無法將任務推入佇列: "+err.Error())
+		return
+	}
+
+	h.respondWithJSON(w, http.StatusAccepted, map[string]string{
+		"message": "排程已成功觸發",
+		"task_id": task.ID,
+	})
 }

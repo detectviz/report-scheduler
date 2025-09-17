@@ -94,7 +94,7 @@ func main() {
 	appWorker := worker.NewWorker(taskQueue, processFunc)
 
 	// 7. 建立 API 處理器
-	apiHandler := api.NewAPIHandler(dbStore, secretsManager)
+	apiHandler := api.NewAPIHandler(dbStore, secretsManager, taskQueue)
 
 	// 8. 建立 HTTP 路由器
 	r := chi.NewRouter()
@@ -126,6 +126,7 @@ func main() {
 				r.Get("/", apiHandler.GetScheduleByID)
 				r.Put("/", apiHandler.UpdateSchedule)
 				r.Delete("/", apiHandler.DeleteSchedule)
+				r.Post("/trigger", apiHandler.TriggerSchedule)
 			})
 		})
 		r.Route("/history", func(r chi.Router) {

@@ -13,7 +13,7 @@ import (
 )
 
 func TestHistoryAPI_WithRealDB(t *testing.T) {
-	handler, dbStore, cleanup := newTestHandler(t)
+	handler, dbStore, _, cleanup := newTestHandler(t)
 	defer cleanup()
 
 	server := httptest.NewServer(handler)
