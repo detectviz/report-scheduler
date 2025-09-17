@@ -52,9 +52,9 @@
 | :--- | :--- | :--- | :--- |
 | `id` | `UUID` | 唯一識別碼 | `a3b8d4c2-6e7f-4b0a-9c1d-8e2f0a1b3c4d` |
 | `name` | `String` | 資料來源顯示名稱 | `公司正式環境 Kibana` |
-| `type` | `Enum` | 類型。主要分為 `kibana` 和 `grafana`。 | `kibana` |
-| `url` | `String` | **主要 UI 介面位址。** 對於 `kibana` 類型，這裡是 Kibana 的 URL。 | `https://kibana.mycompany.com` |
-| `api_url`| `String` | **對應的後端 API 端點。** 對於 `kibana` 類型，這裡是其對應的 **Elasticsearch API URL**，用於 CSV/Excel 匯出。 | `https://es.mycompany.com:9200` |
+| `type` | `Enum` | 類型。主要分為 `kibana` 和 `grafana`。系統將 `kibana` 類型視為一個包含 UI 和後端數據源的完整服務。 | `kibana` |
+| `url` | `String` | **主要 UI 介面位址。** 對於 `kibana` 類型，此欄位為 Kibana 的 URL。 | `https://kibana.mycompany.com` |
+| `api_url`| `String` | **對應的後端 API 端點。** 對於 `kibana` 類型，此欄位為其對應的 **Elasticsearch API URL**，為必填項，用於 CSV/Excel 匯出等需要直接查詢數據的報表。 | `https://es.mycompany.com:9200` |
 | `auth_type` | `Enum` | 認證方式 | `basic_auth`, `api_token` |
 | `credentials_ref` | `String` | **[安全]** 指向 Vault Secret 的路徑 | `kv/report-scheduler/kibana-prod` |
 | `version` | `String` | **[選填]** 對應系統版本 | `8.5.1` |
@@ -90,8 +90,23 @@
 
 ### **5.2 匯總表格 (Table)**
 
-  - **MVP 階段:** 僅支援 Kibana 的 `Saved Search`。使用者在 Kibana 中定義好查詢與欄位，本系統負責執行並匯出。
-  - **未來擴充:** 考慮內建一個簡易的查詢產生器，讓使用者直接在本系統中選擇 Index Pattern、聚合欄位與指標。
+  - **MVP 階段，本功能僅支援選取並匯出在 Kibana 中預先建立好的 `Saved Search`**。更進階的自建表格產生器將作為未來版本的重要功能進行規劃。
+
+### **5.3 資料庫欄位**
+
+`data_source_id` 定義於報表主體層級，確保一份報表內的所有元素 (Elements) 均來自同一個資料來源。
+
+| 欄位名稱 | 型別 | 說明 | 範例 |
+| :--- | :--- | :--- | :--- |
+| `id` | `UUID` | 唯一識別碼 | |
+| `name` | `String` | 報表名稱 | `每日網站流量分析` |
+| `description`| `String` | **[選填]** 報表描述 | |
+| `data_source_id` | `UUID` | 綁定的資料來源 ID (Foreign Key) | |
+| `space` | `String` | 當 `data_source_id` 指向的資料來源類型為 `kibana` 時，此欄位為必填，用來指定儀表板所在的 Kibana Space。 | `default` |
+| `time_range`| `String` | 報表擷取的時間範圍 | `now-7d` |
+| `elements` | `JSONB` | 報表內包含的元素陣列。其 JSON 物件結構必須包含 `order` 欄位，用途為決定元素在最終 PDF 報表中的垂直排列順序。 | `[{"id": "...", "type": "dashboard", "order": 1}]` |
+| `created_at` | `Timestamp` | 建立時間 | |
+| `updated_at` | `Timestamp` | 更新時間 | |
 
 ## **6. 排程管理**
 
@@ -224,9 +239,10 @@ POST   /api/v1/history/{log_id}/resend // 重寄
 
 ### **10.2 未來展望 (Post-MVP)**
 
-  - **[動態報表]** 支援在排程中設定參數，動態產生客製化報表（例如，為不同客戶或地區產生相同版型的報表）。
+  - 自建匯總表格產生器
+  - 支援在排程中設定參數以產生動態報表
+  - 支援跨資料來源的報表定義
   - 支援多個資料來源。
-  - 內建視覺化表格產生器。
   - 支援更豐富的報表版面配置。
   - 支援更多寄送渠道 (如 Slack, Webhook)。
   - 提供更詳細的權限管理模型 (如團隊/專案空間)。
