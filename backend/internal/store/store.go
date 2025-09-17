@@ -36,6 +36,10 @@ type Store interface {
 	UpdateSchedule(ctx context.Context, id string, s *models.Schedule) error
 	DeleteSchedule(ctx context.Context, id string) error
 
+	// --- HistoryLog Methods ---
+	CreateHistoryLog(ctx context.Context, log *models.HistoryLog) error
+	GetHistoryLogs(ctx context.Context, scheduleID string) ([]models.HistoryLog, error)
+
 	// Close 關閉與資料庫的連線
 	Close() error
 }

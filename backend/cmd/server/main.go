@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"report-scheduler/backend/internal/api"
 	"report-scheduler/backend/internal/config"
+	"report-scheduler/backend/internal/models"
 	"report-scheduler/backend/internal/queue"
 	"report-scheduler/backend/internal/scheduler"
 	"report-scheduler/backend/internal/secrets"
@@ -20,13 +21,50 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-// handleReportTask 是 Worker 用來處理報表產生任務的實際函式
-func handleReportTask(task *queue.Task) error {
-	log.Printf("開始處理報表任務 %s, 來自排程 %s", task.ID, task.ScheduleID)
-	// TODO: 在這裡實作真正的報表產生邏輯
-	time.Sleep(5 * time.Second) // 模擬耗時的工作
-	log.Printf("成功處理完報表任務 %s", task.ID)
-	return nil
+// newProcessFunc 建立一個包含其依賴項（如 store）的 Worker 處理函式。
+// 透過閉包，我們可以將應用程式等級的依賴注入到 Worker 的處理邏輯中。
+func newProcessFunc(s store.Store) worker.ProcessFunc {
+	return func(task *queue.Task) error {
+		startTime := time.Now()
+		log.Printf("開始處理報表任務 %s, 來自排程 %s", task.ID, task.ScheduleID)
+
+		// 為了記錄完整的歷史，我們需要從資料庫獲取排程的詳細資訊
+		schedule, err := s.GetScheduleByID(context.Background(), task.ScheduleID)
+		if err != nil {
+			// 如果連排程都找不到，這是一個嚴重的問題，但我們還是要記錄下來
+			log.Printf("錯誤：處理任務 %s 時找不到對應的排程 %s: %v", task.ID, task.ScheduleID, err)
+			// 也可以在這裡建立一筆失敗的歷史紀錄
+			return err
+		}
+		if schedule == nil {
+			log.Printf("錯誤：處理任務 %s 時找不到對應的排程 %s", task.ID, task.ScheduleID)
+			return nil
+		}
+
+		// TODO: 在這裡實作真正的報表產生邏輯
+		time.Sleep(2 * time.Second) // 模擬耗時的工作
+
+		duration := time.Since(startTime)
+
+		// 建立歷史紀錄
+		logEntry := &models.HistoryLog{
+			ScheduleID:        task.ScheduleID,
+			ScheduleName:      schedule.Name,
+			TriggerTime:       task.CreatedAt,
+			ExecutionDuration: duration.Milliseconds(),
+			Status:            models.LogStatusSuccess,
+			Recipients:        schedule.Recipients,
+			// ReportURL: "...", // 報表產生後會有 URL
+		}
+
+		if err := s.CreateHistoryLog(context.Background(), logEntry); err != nil {
+			log.Printf("錯誤：無法為任務 %s 建立歷史紀錄: %v", task.ID, err)
+			return err
+		}
+
+		log.Printf("成功處理完報表任務 %s，並已建立歷史紀錄 %s", task.ID, logEntry.ID)
+		return nil
+	}
 }
 
 func main() {
@@ -51,8 +89,9 @@ func main() {
 	// 5. 建立排程器服務
 	appScheduler := scheduler.NewScheduler(dbStore, taskQueue)
 
-	// 6. 建立 Worker 服務
-	appWorker := worker.NewWorker(taskQueue, handleReportTask)
+	// 6. 建立 Worker 服務，並傳入真正的處理函式
+	processFunc := newProcessFunc(dbStore)
+	appWorker := worker.NewWorker(taskQueue, processFunc)
 
 	// 7. 建立 API 處理器
 	apiHandler := api.NewAPIHandler(dbStore, secretsManager)
@@ -88,6 +127,9 @@ func main() {
 				r.Put("/", apiHandler.UpdateSchedule)
 				r.Delete("/", apiHandler.DeleteSchedule)
 			})
+		})
+		r.Route("/history", func(r chi.Router) {
+			r.Get("/", apiHandler.GetHistory)
 		})
 	})
 

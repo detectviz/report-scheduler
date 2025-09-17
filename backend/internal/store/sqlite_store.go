@@ -76,6 +76,23 @@ func (s *SqliteStore) initSchema() error {
 	}
 
 	schema = `
+	CREATE TABLE IF NOT EXISTS history_logs (
+		id TEXT PRIMARY KEY,
+		schedule_id TEXT NOT NULL,
+		schedule_name TEXT NOT NULL,
+		trigger_time TIMESTAMP NOT NULL,
+		execution_duration_ms INTEGER NOT NULL,
+		status TEXT NOT NULL,
+		error_message TEXT,
+		recipients TEXT,
+		report_url TEXT
+	);
+	`
+	if _, err := s.db.Exec(schema); err != nil {
+		return err
+	}
+
+	schema = `
 	CREATE TABLE IF NOT EXISTS schedules (
 		id TEXT PRIMARY KEY,
 		name TEXT NOT NULL,
@@ -154,6 +171,36 @@ func (s *SqliteStore) DeleteDataSource(ctx context.Context, id string) error {
 	query := `DELETE FROM datasources WHERE id = ?`
 	_, err := s.db.ExecContext(ctx, query, id)
 	return err
+}
+
+// --- HistoryLog Methods ---
+
+func (s *SqliteStore) CreateHistoryLog(ctx context.Context, log *models.HistoryLog) error {
+	log.ID = uuid.New().String()
+	query := `INSERT INTO history_logs (id, schedule_id, schedule_name, trigger_time, execution_duration_ms, status, error_message, recipients, report_url)
+			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+	_, err := s.db.ExecContext(ctx, query, log.ID, log.ScheduleID, log.ScheduleName, log.TriggerTime, log.ExecutionDuration, log.Status, log.ErrorMessage, log.Recipients, log.ReportURL)
+	return err
+}
+
+func (s *SqliteStore) GetHistoryLogs(ctx context.Context, scheduleID string) ([]models.HistoryLog, error) {
+	query := `SELECT id, schedule_id, schedule_name, trigger_time, execution_duration_ms, status, error_message, recipients, report_url FROM history_logs WHERE schedule_id = ? ORDER BY trigger_time DESC`
+	rows, err := s.db.QueryContext(ctx, query, scheduleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var logs []models.HistoryLog
+	for rows.Next() {
+		var log models.HistoryLog
+		if err := rows.Scan(&log.ID, &log.ScheduleID, &log.ScheduleName, &log.TriggerTime, &log.ExecutionDuration, &log.Status, &log.ErrorMessage, &log.Recipients, &log.ReportURL); err != nil {
+			return nil, err
+		}
+		logs = append(logs, log)
+	}
+	return logs, nil
 }
 
 // Close 關閉資料庫連線

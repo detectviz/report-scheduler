@@ -12,7 +12,7 @@ import (
 )
 
 func TestScheduleAPI_WithRealDB(t *testing.T) {
-	handler, cleanup := newTestHandler(t)
+	handler, _, cleanup := newTestHandler(t)
 	defer cleanup()
 
 	server := httptest.NewServer(handler)

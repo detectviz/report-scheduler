@@ -98,3 +98,14 @@ func (s *MockStore) DeleteSchedule(ctx context.Context, id string) error {
 func (s *MockStore) Close() error {
 	return nil
 }
+
+// --- HistoryLog Methods (Placeholders) ---
+func (s *MockStore) CreateHistoryLog(ctx context.Context, log *models.HistoryLog) error {
+	return s.ErrToReturn
+}
+func (s *MockStore) GetHistoryLogs(ctx context.Context, scheduleID string) ([]models.HistoryLog, error) {
+	if s.ErrToReturn != nil {
+		return nil, s.ErrToReturn
+	}
+	return []models.HistoryLog{}, nil
+}

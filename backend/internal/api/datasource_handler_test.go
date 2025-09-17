@@ -18,8 +18,8 @@ import (
 )
 
 // newTestHandler 建立一個使用真實 SqliteStore 的測試路由器。
-// 它會回傳一個 http.Handler 和一個用於清理暫存資料庫的函式。
-func newTestHandler(t *testing.T) (http.Handler, func()) {
+// 它會回傳一個 http.Handler、一個 store 實例和一個用於清理的函式。
+func newTestHandler(t *testing.T) (http.Handler, store.Store, func()) {
 	tempDir, err := ioutil.TempDir("", "test-db-")
 	require.NoError(t, err)
 
@@ -70,6 +70,11 @@ func newTestHandler(t *testing.T) (http.Handler, func()) {
 				r.Delete("/", apiHandler.DeleteSchedule)
 			})
 		})
+
+		// History 路由
+		r.Route("/history", func(r chi.Router) {
+			r.Get("/", apiHandler.GetHistory)
+		})
 	})
 
 	cleanup := func() {
@@ -77,11 +82,11 @@ func newTestHandler(t *testing.T) (http.Handler, func()) {
 		os.RemoveAll(tempDir)
 	}
 
-	return r, cleanup
+	return r, dbStore, cleanup
 }
 
 func TestDatasourceAPI_WithRealDB(t *testing.T) {
-	handler, cleanup := newTestHandler(t)
+	handler, _, cleanup := newTestHandler(t)
 	defer cleanup()
 
 	server := httptest.NewServer(handler)
