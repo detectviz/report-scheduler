@@ -2,47 +2,15 @@ package api
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"report-scheduler/backend/internal/models"
-	"report-scheduler/backend/internal/store"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 )
 
-// APIHandler 是一個包含應用程式依賴（如資料庫 store）的結構
-type APIHandler struct {
-	Store store.Store
-}
-
-// NewAPIHandler 建立並回傳一個新的 APIHandler
-func NewAPIHandler(s store.Store) *APIHandler {
-	return &APIHandler{
-		Store: s,
-	}
-}
-
-// --- Utility Functions ---
-
-// respondWithError 是一個輔助函式，用於發送統一格式的 JSON 錯誤訊息
-func (h *APIHandler) respondWithError(w http.ResponseWriter, code int, message string) {
-	h.respondWithJSON(w, code, map[string]string{"error": message})
-}
-
-// respondWithJSON 是一個輔助函式，用於將 payload 編碼為 JSON 並發送
-func (h *APIHandler) respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
-	response, err := json.Marshal(payload)
-	if err != nil {
-		// 如果連錯誤訊息本身都無法序列化，就只能回傳一個基本的伺服器錯誤
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal Server Error"))
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	w.Write(response)
-}
-
-// --- Handler Methods ---
+// --- DataSource Handler Methods ---
 
 // GetDataSources 處理獲取所有資料來源的請求
 func (h *APIHandler) GetDataSources(w http.ResponseWriter, r *http.Request) {
@@ -112,4 +80,62 @@ func (h *APIHandler) DeleteDataSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.respondWithJSON(w, http.StatusOK, map[string]string{"message": "資料來源 " + id + " 已成功刪除"})
+}
+
+// ValidateDataSource 處理驗證資料來源連線的請求
+func (h *APIHandler) ValidateDataSource(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "datasourceID")
+
+	// 1. 從資料庫獲取資料來源
+	ds, err := h.Store.GetDataSourceByID(r.Context(), id)
+	if err != nil {
+		h.respondWithError(w, http.StatusInternalServerError, "無法獲取資料來源: "+err.Error())
+		return
+	}
+	if ds == nil {
+		h.respondWithError(w, http.StatusNotFound, "找不到指定的資料來源")
+		return
+	}
+
+	// 2. 從憑證管理器獲取憑證 (此處為模擬)
+	// 在真實世界中，ds.CredentialsRef 將會被傳入
+	creds, err := h.Secrets.GetCredentials("kv/report-scheduler/kibana-prod")
+	if err != nil {
+		h.respondWithError(w, http.StatusInternalServerError, "無法獲取憑證: "+err.Error())
+		return
+	}
+
+	// 3. 對外部服務發起測試請求
+	req, err := http.NewRequestWithContext(r.Context(), "GET", ds.URL, nil)
+	if err != nil {
+		h.respondWithError(w, http.StatusInternalServerError, "無法建立驗證請求")
+		return
+	}
+
+	// 在真實世界中，我們會根據 ds.AuthType 和 creds 來設定認證標頭
+	// 例如: req.Header.Set("Authorization", "Bearer "+creds.Token)
+	log.Printf("正在使用 Token '%s' 驗證資料來源 %s...", creds.Token, ds.URL)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+
+	// 4. 根據驗證結果更新資料庫中的狀態
+	if err != nil || resp.StatusCode != http.StatusOK {
+		ds.Status = models.Error
+		if err := h.Store.UpdateDataSource(r.Context(), ds.ID, ds); err != nil {
+			h.respondWithError(w, http.StatusInternalServerError, "更新資料來源狀態失敗: "+err.Error())
+		} else {
+			h.respondWithError(w, http.StatusBadGateway, "驗證失敗：無法連線到資料來源")
+		}
+		return
+	}
+	resp.Body.Close()
+
+	ds.Status = models.Verified
+	if err := h.Store.UpdateDataSource(r.Context(), ds.ID, ds); err != nil {
+		h.respondWithError(w, http.StatusInternalServerError, "更新資料來源狀態失敗: "+err.Error())
+		return
+	}
+
+	h.respondWithJSON(w, http.StatusOK, map[string]string{"status": "verified", "message": "資料來源連線驗證成功"})
 }

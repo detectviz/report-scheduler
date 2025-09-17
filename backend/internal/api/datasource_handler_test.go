@@ -9,6 +9,7 @@ import (
 	"os"
 	"report-scheduler/backend/internal/config"
 	"report-scheduler/backend/internal/models"
+	"report-scheduler/backend/internal/secrets"
 	"report-scheduler/backend/internal/store"
 	"testing"
 
@@ -34,7 +35,9 @@ func newTestHandler(t *testing.T) (http.Handler, func()) {
 	dbStore, err := store.NewStore(testCfg)
 	require.NoError(t, err)
 
-	apiHandler := NewAPIHandler(dbStore)
+	secretsManager := secrets.NewMockSecretsManager()
+
+	apiHandler := NewAPIHandler(dbStore, secretsManager)
 	r := chi.NewRouter()
 
 	// 路由設定必須跟 main.go 完全一樣
@@ -46,6 +49,7 @@ func newTestHandler(t *testing.T) (http.Handler, func()) {
 				r.Get("/", apiHandler.GetDataSourceByID)
 				r.Put("/", apiHandler.UpdateDataSource)
 				r.Delete("/", apiHandler.DeleteDataSource)
+				r.Post("/validate", apiHandler.ValidateDataSource)
 			})
 		})
 		r.Route("/reports", func(r chi.Router) {
@@ -155,5 +159,37 @@ func TestDatasourceAPI_WithRealDB(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusNotFound, resp.StatusCode)
+	})
+
+	// 7. 測試驗證端點
+	t.Run("validate datasource successfully", func(t *testing.T) {
+		// a. 建立一個模擬外部服務的 http server
+		externalService := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK) // 模擬一個成功的狀態檢查
+		}))
+		defer externalService.Close()
+
+		// b. 建立一個指向模擬服務的 datasource
+		dsJSON := `{"name": "DS to Validate", "type": "kibana", "url": "` + externalService.URL + `", "auth_type": "none", "status": "unverified", "credentials_ref": "kv/report-scheduler/kibana-prod"}`
+		resp, err := http.Post(server.URL+"/api/v1/datasources", "application/json", bytes.NewBuffer([]byte(dsJSON)))
+		require.NoError(t, err)
+		var dsToValidate models.DataSource
+		json.NewDecoder(resp.Body).Decode(&dsToValidate)
+		resp.Body.Close()
+
+		// c. 呼叫驗證端點
+		validateURL := server.URL + "/api/v1/datasources/" + dsToValidate.ID + "/validate"
+		resp, err = http.Post(validateURL, "application/json", nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		// d. 從資料庫中重新獲取該 datasource，確認其狀態已更新為 "verified"
+		resp, err = http.Get(server.URL + "/api/v1/datasources/" + dsToValidate.ID)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		var validatedDS models.DataSource
+		json.NewDecoder(resp.Body).Decode(&validatedDS)
+		require.Equal(t, models.Verified, validatedDS.Status, "資料來源狀態應更新為 verified")
 	})
 }
