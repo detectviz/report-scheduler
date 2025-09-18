@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Table, Tag, Space, Button, Modal, message, Descriptions, Spin, Alert } from 'antd';
+import { Table, Tag, Space, Button, Modal, message, Descriptions, Spin, Alert, Typography } from 'antd';
+import { useParams, Link } from 'react-router-dom';
 import { getHistoryByScheduleId, resendHistory } from '../api/history';
 import type { HistoryLog } from '../api/history';
 
-// TODO: 這個頁面應該從路由或 props 接收 scheduleId
-const MOCK_SCHEDULE_ID = "c1b0a69a-3f8b-4a6d-8f9a-0b1c2d3e4f5g"; // 假設的 ID，用於開發
+const { Title } = Typography;
 
 const HistoryPage: React.FC = () => {
+    const { scheduleId } = useParams<{ scheduleId: string }>();
     const [historyData, setHistoryData] = useState<HistoryLog[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
@@ -14,20 +15,20 @@ const HistoryPage: React.FC = () => {
     const [selectedRecord, setSelectedRecord] = useState<HistoryLog | null>(null);
 
     const fetchHistory = useCallback(async () => {
+        if (!scheduleId) return;
+
         setLoading(true);
         setError(null);
         try {
-            // 在實際應用中，scheduleId 應該來自於 props 或路由參數
-            const data = await getHistoryByScheduleId(MOCK_SCHEDULE_ID);
-            setHistoryData(data);
+            const data = await getHistoryByScheduleId(scheduleId);
+            setHistoryData(data || []);
         } catch (err: any) {
-            // 錯誤已由 apiClient 攔截器處理，這裡可選擇性地在 UI 上顯示更多資訊
             setError('無法載入歷史紀錄。');
             console.error(err);
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [scheduleId]);
 
     useEffect(() => {
         fetchHistory();
@@ -39,10 +40,8 @@ const HistoryPage: React.FC = () => {
         try {
             await resendHistory(record.id);
             message.success({ content: `紀錄 "${record.schedule_name}" 已成功加入重送佇列！`, key, duration: 2 });
-            // 延遲一秒後重新整理列表，讓後端有時間處理
             setTimeout(fetchHistory, 1000);
         } catch (err) {
-            // 錯誤已由 apiClient 攔截器中的 message.error 處理
             console.error(err);
         }
     };
@@ -85,12 +84,23 @@ const HistoryPage: React.FC = () => {
             key: 'action',
             render: (_: any, record: HistoryLog) => (
                 <Space size="middle">
-                    <a onClick={() => showDetails(record)}>查看詳情</a>
-                    <a onClick={() => handleResend(record)}>重寄</a>
+                    <Button type="link" style={{ padding: 0 }} onClick={() => showDetails(record)}>查看詳情</Button>
+                    <Button type="link" style={{ padding: 0 }} onClick={() => handleResend(record)}>重寄</Button>
                 </Space>
             ),
         },
     ];
+
+    if (!scheduleId) {
+        return (
+            <Alert
+                message="錯誤"
+                description={<span>無效的排程 ID。請從 <Link to="/schedules">排程管理</Link> 頁面進入。</span>}
+                type="error"
+                showIcon
+            />
+        );
+    }
 
     if (loading) {
         return <Spin tip="正在載入歷史紀錄..." />;
@@ -102,7 +112,8 @@ const HistoryPage: React.FC = () => {
 
     return (
         <div>
-            <Table columns={historyColumns} dataSource={historyData} />
+            <Title level={2}>執行歷史紀錄</Title>
+            <Table columns={historyColumns} dataSource={historyData} rowKey="id" />
             <Modal
                 title="執行紀錄詳情"
                 open={isDetailModalVisible}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button, Modal, Form, Input, Switch, message, Table, Space, Select, Typography, Popconfirm } from 'antd';
+import { useNavigate } from 'react-router-dom';
 import { getSchedules, createSchedule, updateSchedule, deleteSchedule, triggerSchedule } from '../api/schedule';
 import type { Schedule } from '../api/schedule';
 import { getReportDefinitions } from '../api/report';
@@ -11,6 +12,7 @@ const { Option } = Select;
 const timezones = ["UTC", "Asia/Taipei", "Asia/Tokyo", "America/New_York", "Europe/London"];
 
 const ScheduleManagementPage: React.FC = () => {
+    const navigate = useNavigate();
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [editingRecord, setEditingRecord] = useState<Schedule | null>(null);
     const [form] = Form.useForm();
@@ -126,15 +128,16 @@ const ScheduleManagementPage: React.FC = () => {
             key: 'action',
             render: (_: unknown, record: Schedule) => (
                 <Space size="middle">
-                    <a onClick={() => showModal(record)}>編輯</a>
-                    <a onClick={() => handleTest(record)}>立即測試</a>
+                    <Button type="link" style={{ padding: 0 }} onClick={() => showModal(record)}>編輯</Button>
+                    <Button type="link" style={{ padding: 0 }} onClick={() => navigate(`/history/${record.id}`)}>查看歷史</Button>
+                    <Button type="link" style={{ padding: 0 }} onClick={() => handleTest(record)}>立即測試</Button>
                     <Popconfirm
                         title={`確定要刪除排程 "${record.name}" 嗎?`}
                         onConfirm={() => handleDelete(record.id)}
                         okText="確定"
                         cancelText="取消"
                     >
-                        <a style={{ color: 'red' }}>刪除</a>
+                        <Button type="link" danger style={{ padding: 0 }}>刪除</Button>
                     </Popconfirm>
                 </Space>
             ),

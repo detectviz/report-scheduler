@@ -5,7 +5,6 @@ import {
     DatabaseOutlined,
     FileTextOutlined,
     ScheduleOutlined,
-    HistoryOutlined,
 } from '@ant-design/icons';
 
 const { Header, Content, Footer, Sider } = Layout;
@@ -26,11 +25,6 @@ const menuItems = [
         key: '/schedules',
         icon: <ScheduleOutlined />,
         label: <Link to="/schedules">排程管理</Link>,
-    },
-    {
-        key: '/history',
-        icon: <HistoryOutlined />,
-        label: <Link to="/history">歷史紀錄</Link>,
     },
 ];
 

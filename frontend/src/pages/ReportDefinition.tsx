@@ -65,7 +65,7 @@ const ReportDefinitionPage: React.FC = () => {
             title: '報表名稱',
             dataIndex: 'name',
             key: 'name',
-            render: (text: string, record: ReportDefinition) => <a onClick={() => handleEditReport(record.id)}>{text}</a>,
+            render: (text: string, record: ReportDefinition) => <Button type="link" onClick={() => handleEditReport(record.id)} style={{ padding: 0 }}>{text}</Button>,
         },
         {
             title: '資料來源',
@@ -78,23 +78,23 @@ const ReportDefinitionPage: React.FC = () => {
             dataIndex: 'elements',
             key: 'elements',
             align: 'center',
-            render: (elements: ReportElement[]) => elements?.length || 0,
+            render: (elements: ReportElement[]) => (elements || []).length,
         },
         {
             title: '操作',
             key: 'action',
             render: (_: unknown, record: ReportDefinition) => (
                 <Space size="middle">
-                    <a onClick={() => handleEditReport(record.id)}>編輯</a>
+                    <Button type="link" onClick={() => handleEditReport(record.id)} style={{ padding: 0 }}>編輯</Button>
                     <Popconfirm
                         title={`確定要刪除 "${record.name}" 嗎?`}
                         onConfirm={() => handleDeleteReport(record.id)}
                         okText="確定"
                         cancelText="取消"
                     >
-                        <a>刪除</a>
+                        <Button type="link" danger style={{ padding: 0 }}>刪除</Button>
                     </Popconfirm>
-                    <a>立即執行</a>
+                    <Button type="link" disabled style={{ padding: 0 }}>立即執行</Button>
                 </Space>
             ),
         },

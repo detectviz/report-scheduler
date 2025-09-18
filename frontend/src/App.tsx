@@ -20,7 +20,7 @@ const App: React.FC = () => {
         <Route path="reports/new" element={<ReportDefinitionForm />} />
         <Route path="reports/edit/:id" element={<ReportDefinitionForm />} />
         <Route path="schedules" element={<ScheduleManagementPage />} />
-        <Route path="history" element={<HistoryPage />} />
+        <Route path="history/:scheduleId" element={<HistoryPage />} />
         {/* Redirect any unknown paths to the main page */}
         <Route path="*" element={<Navigate to="/datasources" replace />} />
       </Route>

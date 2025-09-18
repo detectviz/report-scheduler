@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Form, Input, Select, Divider, Transfer, Button, message, Typography, Table } from 'antd';
+import { Form, Input, Select, Divider, Transfer, Button, message, Typography, Table, Spin, Space } from 'antd';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -56,6 +56,7 @@ const ReportDefinitionForm: React.FC = () => {
 
     const [dataSources, setDataSources] = useState<DataSource[]>([]);
     const [availableElements, setAvailableElements] = useState<AvailableElement[]>([]);
+    const [elementsLoading, setElementsLoading] = useState(false);
     const [targetKeys, setTargetKeys] = useState<string[]>([]);
 
     const [loading, setLoading] = useState(false);
@@ -68,9 +69,9 @@ const ReportDefinitionForm: React.FC = () => {
         const fetchDS = async () => {
             try {
                 const ds = await getDataSources();
-                setDataSources(ds);
+                setDataSources(ds || []);
             } catch (error) {
-                console.error("Failed to fetch data sources", error);
+                message.error('無法獲取資料來源列表');
             }
         };
         fetchDS();
@@ -81,7 +82,24 @@ const ReportDefinitionForm: React.FC = () => {
         if (id) {
             setLoading(true);
             getReportDefinitionById(id).then(data => {
-                form.setFieldsValue(data);
+                const { time_range, ...restData } = data;
+                form.setFieldsValue(restData);
+
+                // Parse time_range to populate the UI
+                const quickRanges = ["now-1h", "now-24h", "now-7d", "now-30d"];
+                if (quickRanges.includes(time_range)) {
+                    form.setFieldsValue({ time_range_quick: time_range, time_range: time_range });
+                } else if (time_range) {
+                    const match = time_range.match(/now-(\d+)([mhdwyM])/);
+                    if (match) {
+                        form.setFieldsValue({
+                            time_range_custom_value: parseInt(match[1], 10),
+                            time_range_custom_unit: match[2],
+                            time_range: time_range,
+                        });
+                    }
+                }
+
                 setTargetKeys(data.elements.map(el => el.id));
                 setLoading(false);
             }).catch(error => {
@@ -94,11 +112,14 @@ const ReportDefinitionForm: React.FC = () => {
     // Fetch available elements when data source changes
     useEffect(() => {
         if (selectedDataSourceId) {
+            setElementsLoading(true);
             getDataSourceElements(selectedDataSourceId).then(elements => {
-                setAvailableElements(elements);
-            }).catch(error => {
-                console.error("Failed to fetch elements", error);
+                setAvailableElements(elements || []);
+            }).catch(() => {
+                message.error('無法獲取可選項目列表');
                 setAvailableElements([]);
+            }).finally(() => {
+                setElementsLoading(false);
             });
         } else {
             setAvailableElements([]);
@@ -166,7 +187,40 @@ const ReportDefinitionForm: React.FC = () => {
                         ))}
                     </Select>
                 </Form.Item>
-                {/* FIXME: Add time range selection here */}
+                <Form.Item label="時間範圍">
+                    <Space.Compact>
+                        <Form.Item name={['time_range_quick']} noStyle>
+                            <Select placeholder="選擇快捷時間" style={{ width: '150px' }} onChange={(value) => form.setFieldsValue({ time_range: value, time_range_custom_value: null, time_range_custom_unit: 'h' })}>
+                                <Option value="now-1h">過去 1 小時</Option>
+                                <Option value="now-24h">過去 24 小時</Option>
+                                <Option value="now-7d">過去 7 天</Option>
+                                <Option value="now-30d">過去 30 天</Option>
+                            </Select>
+                        </Form.Item>
+                         <Form.Item name={['time_range_custom_value']} noStyle>
+                            <Input
+                                style={{ width: '150px' }}
+                                placeholder="或自訂相對時間"
+                                type="number"
+                                onChange={(e) => form.setFieldsValue({ time_range_quick: null, time_range: `now-${e.target.value}${form.getFieldValue('time_range_custom_unit')}`})}
+                            />
+                        </Form.Item>
+                        <Form.Item name={['time_range_custom_unit']} noStyle>
+                             <Select style={{ width: '80px' }} onChange={(value) => form.setFieldsValue({ time_range_quick: null, time_range: `now-${form.getFieldValue('time_range_custom_value')}${value}`})}>
+                                <Option value="m">分鐘</Option>
+                                <Option value="h">小時</Option>
+                                <Option value="d">天</Option>
+                                <Option value="w">週</Option>
+                                <Option value="M">月</Option>
+                                <Option value="y">年</Option>
+                            </Select>
+                        </Form.Item>
+                    </Space.Compact>
+                </Form.Item>
+                {/* 真正提交到後端的欄位，使用者不可見 */}
+                <Form.Item name="time_range" hidden>
+                    <Input />
+                </Form.Item>
                 <Divider />
                 <Title level={4}>挑選報表元素</Title>
                 <p>請從左側選擇您想包含在此報表中的儀表板或圖表，並可拖曳右側項目進行排序。</p>
@@ -181,13 +235,15 @@ const ReportDefinitionForm: React.FC = () => {
                     {({ direction, filteredItems, onItemSelect, selectedKeys }) => {
                         if (direction === 'left') {
                             return (
-                                <Table
-                                    rowSelection={{ onSelectAll(selected, selectedRows) { const treeSelectedKeys = selectedRows.map(({ key }) => key); const diffKeys = selected ? treeSelectedKeys.filter(key => !selectedKeys.includes(String(key))) : treeSelectedKeys; onItemSelect(diffKeys as any, selected); }, onSelect({ key }, selected) { onItemSelect(String(key), selected); }, selectedRowKeys: selectedKeys as any }}
-                                    columns={[{ dataIndex: 'title', title: '名稱' }]}
-                                    dataSource={filteredItems}
-                                    size="small"
-                                    onRow={({ key }) => ({ onClick: () => { onItemSelect(String(key), !selectedKeys.includes(String(key))); } })}
-                                />
+                                <Spin spinning={elementsLoading} tip="讀取中...">
+                                    <Table
+                                        rowSelection={{ onSelectAll(selected, selectedRows) { const treeSelectedKeys = selectedRows.map(({ key }) => key); const diffKeys = selected ? treeSelectedKeys.filter(key => !selectedKeys.includes(String(key))) : treeSelectedKeys; onItemSelect(diffKeys as any, selected); }, onSelect({ key }, selected) { onItemSelect(String(key), selected); }, selectedRowKeys: selectedKeys as any }}
+                                        columns={[{ dataIndex: 'title', title: '名稱' }]}
+                                        dataSource={filteredItems}
+                                        size="small"
+                                        onRow={({ key }) => ({ onClick: () => { onItemSelect(String(key), !selectedKeys.includes(String(key))); } })}
+                                    />
+                                </Spin>
                             );
                         }
                         return (
