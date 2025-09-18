@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button, Modal, Form, Input, Switch, message, Table, Space, Select, Typography, Popconfirm } from 'antd';
-import { getSchedules, createSchedule, updateSchedule, deleteSchedule, triggerSchedule, Schedule } from '../api/schedule';
-import { getReportDefinitions, ReportDefinition } from '../api/report';
+import { getSchedules, createSchedule, updateSchedule, deleteSchedule, triggerSchedule } from '../api/schedule';
+import type { Schedule } from '../api/schedule';
+import { getReportDefinitions } from '../api/report';
+import type { ReportDefinition } from '../api/report';
 
 const { Title } = Typography;
 const { Option } = Select;
@@ -131,7 +133,7 @@ const ScheduleManagementPage: React.FC = () => {
                         okText="確定"
                         cancelText="取消"
                     >
-                        <a style={{color: 'red'}}>刪除</a>
+                        <a style={{ color: 'red' }}>刪除</a>
                     </Popconfirm>
                 </Space>
             ),
@@ -145,13 +147,13 @@ const ScheduleManagementPage: React.FC = () => {
             <Button type="primary" onClick={() => showModal()} style={{ marginBottom: 16 }}>
                 新增排程
             </Button>
-            <Table columns={scheduleColumns} dataSource={schedules.map(s => ({...s, key: s.id}))} loading={loading} />
+            <Table columns={scheduleColumns} dataSource={schedules.map(s => ({ ...s, key: s.id }))} loading={loading} />
             <Modal
                 title={editingRecord ? '編輯排程' : '新增排程'}
                 open={isModalVisible}
                 onOk={handleOk}
                 onCancel={handleCancel}
-                destroyOnClose
+                destroyOnHidden
                 width={600}
             >
                 <Form form={form} layout="vertical" name="scheduleForm" initialValues={{ timezone: 'Asia/Taipei', is_enabled: true }}>
@@ -168,9 +170,9 @@ const ScheduleManagementPage: React.FC = () => {
                     </Form.Item>
                     <Form.Item name="report_ids" label="選擇報表" rules={[{ required: true, message: '請至少選擇一份報表' }]}>
                         <Select mode="multiple" placeholder="選擇要附加在此排程的報表" loading={loading}>
-                           {reportDefinitions.map(report => (
-                               <Option key={report.id} value={report.id}>{report.name}</Option>
-                           ))}
+                            {reportDefinitions.map(report => (
+                                <Option key={report.id} value={report.id}>{report.name}</Option>
+                            ))}
                         </Select>
                     </Form.Item>
                     <Form.Item name="recipients_to" label="收件者 (To)" rules={[{ required: true, message: '請至少輸入一位收件者' }]}>

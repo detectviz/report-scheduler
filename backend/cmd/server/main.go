@@ -134,7 +134,7 @@ func main() {
 	}()
 
 	// Start HTTP server
-	srv := &http.Server{Addr: ":8080", Handler: r}
+	srv := &http.Server{Addr: ":8089", Handler: r}
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("HTTP server failed: %s\n", err)

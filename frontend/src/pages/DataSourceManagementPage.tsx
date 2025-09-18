@@ -6,8 +6,8 @@ import {
     updateDataSource,
     deleteDataSource,
     validateDataSource,
-    DataSource,
 } from '../api/dataSource';
+import type { DataSource } from '../api/dataSource';
 
 const { Title } = Typography;
 const { Option } = Select;
@@ -96,44 +96,50 @@ const DataSourceManagementPage: React.FC = () => {
 
     const columns = [
         { title: '名稱', dataIndex: 'name', key: 'name', render: (text: string) => <a>{text}</a> },
-        { title: '類型', dataIndex: 'type', key: 'type', render: (type: string) => {
-            const color = type === 'kibana' ? 'geekblue' : 'volcano';
-            return <Tag color={color}>{type.toUpperCase()}</Tag>;
-        }},
+        {
+            title: '類型', dataIndex: 'type', key: 'type', render: (type: string) => {
+                const color = type === 'kibana' ? 'geekblue' : 'volcano';
+                return <Tag color={color}>{type.toUpperCase()}</Tag>;
+            }
+        },
         { title: 'URL', dataIndex: 'url', key: 'url' },
         { title: '版本', dataIndex: 'version', key: 'version' },
-        { title: '狀態', dataIndex: 'status', key: 'status', render: (status: string) => {
-            let color: string;
-            let text: string;
-            switch (status) {
-                case 'verified':
-                    color = 'success';
-                    text = '已驗證';
-                    break;
-                case 'unverified':
-                    color = 'warning';
-                    text = '未驗證';
-                    break;
-                default:
-                    color = 'error';
-                    text = '連線失敗';
+        {
+            title: '狀態', dataIndex: 'status', key: 'status', render: (status: string) => {
+                let color: string;
+                let text: string;
+                switch (status) {
+                    case 'verified':
+                        color = 'success';
+                        text = '已驗證';
+                        break;
+                    case 'unverified':
+                        color = 'warning';
+                        text = '未驗證';
+                        break;
+                    default:
+                        color = 'error';
+                        text = '連線失敗';
+                }
+                return <Tag color={color}>{text}</Tag>;
             }
-            return <Tag color={color}>{text}</Tag>;
-        }},
-        { title: '操作', key: 'action', render: (_: unknown, record: DataSource) => (
-            <Space size="middle">
-                <a onClick={() => showModal(record)}>編輯</a>
-                <Popconfirm
-                    title={`確定要刪除 "${record.name}" 嗎?`}
-                    onConfirm={() => handleDelete(record.id)}
-                    okText="確定"
-                    cancelText="取消"
-                >
-                    <a>刪除</a>
-                </Popconfirm>
-                <a onClick={() => handleValidate(record)}>驗證連線</a>
-            </Space>
-        )},
+        },
+        {
+            title: '操作', key: 'action', render: (_: unknown, record: DataSource) => (
+                <Space size="middle">
+                    <a onClick={() => showModal(record)}>編輯</a>
+                    <Popconfirm
+                        title={`確定要刪除 "${record.name}" 嗎?`}
+                        onConfirm={() => handleDelete(record.id)}
+                        okText="確定"
+                        cancelText="取消"
+                    >
+                        <a>刪除</a>
+                    </Popconfirm>
+                    <a onClick={() => handleValidate(record)}>驗證連線</a>
+                </Space>
+            )
+        },
     ];
 
     return (
@@ -146,7 +152,7 @@ const DataSourceManagementPage: React.FC = () => {
                 open={isModalVisible}
                 onOk={handleOk}
                 onCancel={handleCancel}
-                destroyOnClose
+                destroyOnHidden
                 forceRender
             >
                 <Form form={form} layout="vertical" name="dataSourceForm" initialValues={{ type: null }}>

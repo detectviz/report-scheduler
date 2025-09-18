@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Button, Table, Space, Typography, Popconfirm, message, TableProps } from 'antd';
+import { Button, Table, Space, Typography, Popconfirm, message } from 'antd';
+import type { TableProps } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { getReportDefinitions, deleteReportDefinition, ReportDefinition, ReportElement } from '../api/report';
-import { DataSource, getDataSources } from '../api/dataSource';
+import { getReportDefinitions, deleteReportDefinition } from '../api/report';
+import type { ReportDefinition, ReportElement } from '../api/report';
+import { getDataSources } from '../api/dataSource';
+import type { DataSource } from '../api/dataSource';
 
 const { Title } = Typography;
 

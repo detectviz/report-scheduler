@@ -12,10 +12,26 @@ const { Header, Content, Footer, Sider } = Layout;
 const { Title } = Typography;
 
 const menuItems = [
-    { key: '/datasources', icon: <DatabaseOutlined />, label: '資料來源管理', path: '/datasources' },
-    { key: '/reports', icon: <FileTextOutlined />, label: '報表定義', path: '/reports' },
-    { key: '/schedules', icon: <ScheduleOutlined />, label: '排程管理', path: '/schedules' },
-    { key: '/history', icon: <HistoryOutlined />, label: '歷史紀錄', path: '/history' },
+    {
+        key: '/datasources',
+        icon: <DatabaseOutlined />,
+        label: <Link to="/datasources">資料來源管理</Link>,
+    },
+    {
+        key: '/reports',
+        icon: <FileTextOutlined />,
+        label: <Link to="/reports">報表定義</Link>,
+    },
+    {
+        key: '/schedules',
+        icon: <ScheduleOutlined />,
+        label: <Link to="/schedules">排程管理</Link>,
+    },
+    {
+        key: '/history',
+        icon: <HistoryOutlined />,
+        label: <Link to="/history">歷史紀錄</Link>,
+    },
 ];
 
 const pageTitles: { [key: string]: string } = {
@@ -49,19 +65,13 @@ const MainLayout: React.FC = () => {
                 }}>
                     報表系統
                 </div>
-                <Menu theme="dark" selectedKeys={[getSelectedKey()]} mode="inline">
-                    {menuItems.map(item => (
-                        <Menu.Item key={item.key} icon={item.icon}>
-                            <Link to={item.path}>{item.label}</Link>
-                        </Menu.Item>
-                    ))}
-                </Menu>
+                <Menu theme="dark" selectedKeys={[getSelectedKey()]} mode="inline" items={menuItems} />
             </Sider>
             <Layout className="site-layout">
                 <Header className="site-layout-background" style={{ padding: '0 24px', background: '#fff' }}>
-                   <Title level={3} style={{ margin: '16px 0' }}>
+                    <Title level={3} style={{ margin: '16px 0' }}>
                         {pageTitles[location.pathname] || '歡迎'}
-                   </Title>
+                    </Title>
                 </Header>
                 <Content style={{ margin: '24px 16px 0' }}>
                     <div className="site-layout-background" style={{ padding: 24, minHeight: 360, background: '#fff' }}>
