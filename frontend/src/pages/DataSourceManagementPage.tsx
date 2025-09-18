@@ -39,9 +39,17 @@ const DataSourceManagementPage: React.FC = () => {
         fetchData();
     }, [fetchData]);
 
+    // 使用 useEffect 來處理表單值的同步，這比在 showModal 中直接設定更穩健
+    useEffect(() => {
+        if (isModalVisible && editingRecord) {
+            form.setFieldsValue(editingRecord);
+        } else {
+            form.resetFields();
+        }
+    }, [editingRecord, isModalVisible, form]);
+
     const showModal = (record: DataSource | null = null) => {
         setEditingRecord(record);
-        form.setFieldsValue(record || { name: '', type: null, url: '', api_url: '', version: '' });
         setIsModalVisible(true);
     };
 
@@ -52,14 +60,14 @@ const DataSourceManagementPage: React.FC = () => {
     const handleOk = async () => {
         try {
             const values = await form.validateFields();
-            const payload = { ...editingRecord, ...values };
 
             if (editingRecord) {
-                await updateDataSource(editingRecord.id, payload);
+                // 更新時，只傳送表單中的值
+                await updateDataSource(editingRecord.id, values);
                 message.success('資料來源已成功更新');
             } else {
-                // 新增時，給予預設狀態
-                payload.status = 'unverified';
+                // 新增時，傳送表單中的值並加上預設狀態
+                const payload = { ...values, status: 'unverified' };
                 await createDataSource(payload);
                 message.success('資料來源已成功新增');
             }
@@ -95,7 +103,7 @@ const DataSourceManagementPage: React.FC = () => {
     };
 
     const columns = [
-        { title: '名稱', dataIndex: 'name', key: 'name', render: (text: string) => <a>{text}</a> },
+        { title: '名稱', dataIndex: 'name', key: 'name', render: (text: string, record: DataSource) => <Button type="link" onClick={() => showModal(record)} style={{ padding: 0 }}>{text}</Button> },
         {
             title: '類型', dataIndex: 'type', key: 'type', render: (type: string) => {
                 const color = type === 'kibana' ? 'geekblue' : 'volcano';
@@ -127,16 +135,16 @@ const DataSourceManagementPage: React.FC = () => {
         {
             title: '操作', key: 'action', render: (_: unknown, record: DataSource) => (
                 <Space size="middle">
-                    <a onClick={() => showModal(record)}>編輯</a>
+                    <Button type="link" onClick={() => showModal(record)} style={{ padding: 0 }}>編輯</Button>
                     <Popconfirm
                         title={`確定要刪除 "${record.name}" 嗎?`}
                         onConfirm={() => handleDelete(record.id)}
                         okText="確定"
                         cancelText="取消"
                     >
-                        <a>刪除</a>
+                        <Button type="link" danger style={{ padding: 0 }}>刪除</Button>
                     </Popconfirm>
-                    <a onClick={() => handleValidate(record)}>驗證連線</a>
+                    <Button type="link" onClick={() => handleValidate(record)} style={{ padding: 0 }}>驗證連線</Button>
                 </Space>
             )
         },
@@ -152,7 +160,7 @@ const DataSourceManagementPage: React.FC = () => {
                 open={isModalVisible}
                 onOk={handleOk}
                 onCancel={handleCancel}
-                destroyOnHidden
+                destroyOnClose
                 forceRender
             >
                 <Form form={form} layout="vertical" name="dataSourceForm" initialValues={{ type: null }}>
