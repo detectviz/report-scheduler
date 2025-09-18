@@ -465,10 +465,29 @@
 
         const ReportDefinitionPage = () => {
             const { Form, Input, Select, DatePicker, Divider, Transfer, Button, message } = antd;
+            const { useEffect } = React;
             const { RangePicker } = DatePicker;
             const [targetKeys, setTargetKeys] = useState(['1', '5']);
             const [selectedKeys, setSelectedKeys] = useState([]);
             const [form] = Form.useForm();
+
+            const [dataSources, setDataSources] = useState([]);
+            const [loadingDataSources, setLoadingDataSources] = useState(true);
+
+            useEffect(() => {
+                setLoadingDataSources(true);
+                fetch("/api/v1/datasources")
+                    .then(res => res.json())
+                    .then(apiData => {
+                        setDataSources(apiData || []);
+                        setLoadingDataSources(false);
+                    })
+                    .catch(error => {
+                        console.error("Fetch datasources error:", error);
+                        message.error('無法獲取資料來源列表');
+                        setLoadingDataSources(false);
+                    });
+            }, []);
 
             const mockReportElements = Array.from({ length: 20 }).map((_, i) => ({
               key: i.toString(),
@@ -484,9 +503,56 @@
                 setSelectedKeys([...sourceSelectedKeys, ...targetSelectedKeys]);
             };
 
+            const [isSaving, setIsSaving] = useState(false);
+
             const onSave = () => {
                 form.validateFields().then(values => {
-                    message.success('報表定義已儲存！');
+                    setIsSaving(true);
+
+                    const selectedDataSource = dataSources.find(ds => ds.id === values.dataSourceId);
+                    if (!selectedDataSource) {
+                        message.error('找不到對應的資料來源，請重新整理後再試');
+                        setIsSaving(false);
+                        return;
+                    }
+
+                    const payload = {
+                        name: values.reportName,
+                        data_source_id: values.dataSourceId,
+                        type: selectedDataSource.type,
+                        details: JSON.stringify({
+                            start_time: values.timeRange[0].toISOString(),
+                            end_time: values.timeRange[1].toISOString(),
+                            elements: targetKeys,
+                        })
+                    };
+
+                    fetch('/api/v1/reports', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    })
+                    .then(res => {
+                        if (res.ok) {
+                            message.success('報表定義已成功儲存！');
+                            form.resetFields();
+                            setTargetKeys([]);
+                        } else {
+                            res.json().then(err => {
+                                message.error(`儲存失敗: ${err.error || '請檢查後端日誌'}`);
+                            }).catch(() => {
+                                message.error('儲存失敗，且無法解析錯誤訊息');
+                            })
+                        }
+                    })
+                    .catch(err => {
+                        console.error("Save report error:", err);
+                        message.error('網路請求失敗');
+                    })
+                    .finally(() => {
+                        setIsSaving(false);
+                    });
+
                 }).catch(info => {
                     console.log('Validate Failed:', info);
                 });
@@ -498,14 +564,17 @@
                     <Form.Item label="報表名稱" name="reportName" rules={[{ required: true, message: '請輸入報表名稱' }]}>
                         <Input placeholder="例如：每日網站流量分析報表" />
                     </Form.Item>
-                     <Form.Item label="選擇資料來源" name="dataSource" rules={[{ required: true, message: '請選擇一個資料來源' }]}>
-                        <Select placeholder="選擇一個已驗證的資料來源">
-                            <Select.Option value="kibana_prod">公司正式環境 Kibana</Select.Option>
-                            <Select.Option value="grafana_test" disabled>測試環境 Grafana (未驗證)</Select.Option>
+                     <Form.Item label="選擇資料來源" name="dataSourceId" rules={[{ required: true, message: '請選擇一個資料來源' }]}>
+                        <Select placeholder="選擇一個已驗證的資料來源" loading={loadingDataSources}>
+                            {dataSources.map(ds => (
+                                <Select.Option key={ds.id} value={ds.id} disabled={ds.status !== 'verified'}>
+                                    {ds.name} ({ds.type.toUpperCase()})
+                                </Select.Option>
+                            ))}
                         </Select>
                     </Form.Item>
                     <Form.Item label="設定時間範圍" name="timeRange" rules={[{ required: true, message: '請設定時間範圍' }]}>
-                        <RangePicker style={{ width: '100%' }} />
+                        <RangePicker style={{ width: '100%' }} showTime />
                     </Form.Item>
                     <Divider />
                     <Title level={4}>挑選報表元素</Title>
@@ -526,7 +595,7 @@
                         />
                     <Divider />
                      <Form.Item>
-                        <Button type="primary" htmlType="submit">儲存報表定義</Button>
+                        <Button type="primary" htmlType="submit" loading={isSaving}>儲存報表定義</Button>
                     </Form.Item>
                 </Form>
             );
