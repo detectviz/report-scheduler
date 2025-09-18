@@ -1,97 +1,116 @@
-import React, { useState, useEffect } from 'react';
-import { Form, Input, Select, DatePicker, Divider, Transfer, Button, message, Typography } from 'antd';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Button, Table, Space, Typography, Popconfirm, message, TableProps } from 'antd';
+import { useNavigate } from 'react-router-dom';
+import { getReportDefinitions, deleteReportDefinition, ReportDefinition, ReportElement } from '../api/report';
+import { DataSource, getDataSources } from '../api/dataSource';
 
 const { Title } = Typography;
-const { RangePicker } = DatePicker;
 
 const ReportDefinitionPage: React.FC = () => {
-    const [targetKeys, setTargetKeys] = useState<string[]>(['1', '5']);
-    const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
-    const [form] = Form.useForm();
+    const navigate = useNavigate();
+    const [reports, setReports] = useState<ReportDefinition[]>([]);
+    const [dataSources, setDataSources] = useState<Record<string, DataSource>>({});
+    const [loading, setLoading] = useState(true);
 
-    const [dataSources, setDataSources] = useState<any[]>([]);
-    const [loadingDataSources, setLoadingDataSources] = useState(true);
+    const fetchData = useCallback(async () => {
+        setLoading(true);
+        try {
+            const [reportsData, dataSourcesData] = await Promise.all([
+                getReportDefinitions(),
+                getDataSources(),
+            ]);
 
-    useEffect(() => {
-        setLoadingDataSources(true);
-        // FIXME: Replace with actual API call
-        const mockDataSources = [
-            { id: '1', name: '公司正式環境 Kibana (verified)', type: 'kibana', status: 'verified' },
-            { id: '2', name: '測試環境 Grafana (unverified)', type: 'grafana', status: 'unverified' },
-        ];
-        setDataSources(mockDataSources);
-        setLoadingDataSources(false);
+            const dataSourceMap = dataSourcesData.reduce((acc, ds) => {
+                acc[ds.id] = ds;
+                return acc;
+            }, {} as Record<string, DataSource>);
+
+            setReports(reportsData);
+            setDataSources(dataSourceMap);
+
+        } catch (error) {
+            console.error("Failed to fetch data:", error);
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
-    const mockReportElements = Array.from({ length: 20 }).map((_, i) => ({
-      key: i.toString(),
-      title: `儀表板或圖表 ${i + 1}`,
-      description: `這是項目 ${i + 1} 的描述`,
-    }));
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
-    const onTransferChange = (nextTargetKeys: string[]) => {
-        setTargetKeys(nextTargetKeys);
+    const handleAddReport = () => {
+        navigate('/reports/new');
     };
 
-    const onTransferSelectChange = (sourceSelectedKeys: string[], targetSelectedKeys: string[]) => {
-        setSelectedKeys([...sourceSelectedKeys, ...targetSelectedKeys]);
+    const handleEditReport = (id: string) => {
+        navigate(`/reports/edit/${id}`);
     };
 
-    const [isSaving, setIsSaving] = useState(false);
-
-    const onSave = () => {
-        form.validateFields().then(values => {
-            setIsSaving(true);
-            console.log("Form values:", values);
-            console.log("Selected elements:", targetKeys);
-            // FIXME: Implement actual API call
-            message.success('報表定義已成功儲存！');
-            setIsSaving(false);
-        }).catch(info => {
-            console.log('Validate Failed:', info);
-        });
+    const handleDeleteReport = async (id: string) => {
+        try {
+            await deleteReportDefinition(id);
+            message.success('報表定義已成功刪除');
+            fetchData(); // Refresh data
+        } catch (error) {
+            console.error("Failed to delete report definition:", error);
+        }
     };
+
+    const columns: TableProps<ReportDefinition>['columns'] = [
+        {
+            title: '報表名稱',
+            dataIndex: 'name',
+            key: 'name',
+            render: (text: string, record: ReportDefinition) => <a onClick={() => handleEditReport(record.id)}>{text}</a>,
+        },
+        {
+            title: '資料來源',
+            dataIndex: 'datasource_id',
+            key: 'datasource_id',
+            render: (dataSourceId: string) => dataSources[dataSourceId]?.name || '未知',
+        },
+        {
+            title: '元素數量',
+            dataIndex: 'elements',
+            key: 'elements',
+            align: 'center',
+            render: (elements: ReportElement[]) => elements?.length || 0,
+        },
+        {
+            title: '操作',
+            key: 'action',
+            render: (_: unknown, record: ReportDefinition) => (
+                <Space size="middle">
+                    <a onClick={() => handleEditReport(record.id)}>編輯</a>
+                    <Popconfirm
+                        title={`確定要刪除 "${record.name}" 嗎?`}
+                        onConfirm={() => handleDeleteReport(record.id)}
+                        okText="確定"
+                        cancelText="取消"
+                    >
+                        <a>刪除</a>
+                    </Popconfirm>
+                    <a>立即執行</a>
+                </Space>
+            ),
+        },
+    ];
 
     return (
-        <Form form={form} layout="vertical" onFinish={onSave}>
-            <Title level={4}>基本資訊</Title>
-            <Form.Item label="報表名稱" name="reportName" rules={[{ required: true, message: '請輸入報表名稱' }]}>
-                <Input placeholder="例如：每日網站流量分析報表" />
-            </Form.Item>
-             <Form.Item label="選擇資料來源" name="dataSourceId" rules={[{ required: true, message: '請選擇一個資料來源' }]}>
-                <Select placeholder="選擇一個已驗證的資料來源" loading={loadingDataSources}>
-                    {dataSources.map(ds => (
-                        <Select.Option key={ds.id} value={ds.id} disabled={ds.status !== 'verified'}>
-                            {ds.name} ({ds.type.toUpperCase()})
-                        </Select.Option>
-                    ))}
-                </Select>
-            </Form.Item>
-            <Form.Item label="設定時間範圍" name="timeRange" rules={[{ required: true, message: '請設定時間範圍' }]}>
-                <RangePicker style={{ width: '100%' }} showTime />
-            </Form.Item>
-            <Divider />
-            <Title level={4}>挑選報表元素</Title>
-            <p>請從左側選擇您想包含在此報表中的儀表板或圖表，並可拖曳右側項目進行排序。</p>
-            <Transfer
-                dataSource={mockReportElements}
-                titles={['可選項目', '已選項目']}
-                targetKeys={targetKeys}
-                selectedKeys={selectedKeys}
-                onChange={onTransferChange}
-                onSelectChange={onTransferSelectChange}
-                render={item => item.title}
-                listStyle={{
-                  width: '100%',
-                  height: 300,
-                }}
-                oneWay
-                />
-            <Divider />
-             <Form.Item>
-                <Button type="primary" htmlType="submit" loading={isSaving}>儲存報表定義</Button>
-            </Form.Item>
-        </Form>
+        <div>
+            <Title level={2}>報表定義</Title>
+            <p>管理所有已設定的報表定義。您可以在此建立新報表、編輯現有設定或手動觸發執行。</p>
+            <Button type="primary" onClick={handleAddReport} style={{ marginBottom: 16 }}>
+                新增報表定義
+            </Button>
+            <Table
+                columns={columns}
+                dataSource={reports.map(r => ({ ...r, key: r.id }))}
+                loading={loading}
+                rowKey="id"
+            />
+        </div>
     );
 };
 

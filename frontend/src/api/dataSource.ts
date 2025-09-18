@@ -44,3 +44,15 @@ export const deleteDataSource = (id: string): Promise<{ message: string }> => {
 export const validateDataSource = (id: string): Promise<{ status: string; message: string }> => {
     return apiClient.post(`/datasources/${id}/validate`);
 };
+
+// 對應後端的 models.AvailableElement
+export interface AvailableElement {
+    id: string;
+    type: 'dashboard' | 'visualization' | 'saved_search';
+    title: string;
+}
+
+// 獲取指定資料來源下的可用元素
+export const getDataSourceElements = (dataSourceId: string): Promise<AvailableElement[]> => {
+    return apiClient.get(`/datasources/${dataSourceId}/elements`);
+};

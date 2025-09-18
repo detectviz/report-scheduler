@@ -92,6 +92,7 @@ func main() {
 				r.Put("/", apiHandler.UpdateDataSource)
 				r.Delete("/", apiHandler.DeleteDataSource)
 				r.Post("/validate", apiHandler.ValidateDataSource)
+				r.Get("/elements", apiHandler.GetDataSourceElements)
 			})
 		})
 		r.Route("/reports", func(r chi.Router) {

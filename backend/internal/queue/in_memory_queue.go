@@ -23,6 +23,15 @@ func NewInMemoryQueue(size int) *InMemoryQueue {
 
 // Enqueue 將任務加入佇列。如果佇列已關閉，則回傳錯誤。
 func (q *InMemoryQueue) Enqueue(ctx context.Context, task *Task) error {
+	// 優先檢查佇列是否已關閉，避免在關閉後仍能成功加入任務
+	select {
+	case <-q.done:
+		return ErrQueueClosed
+	default:
+		// 佇列未關閉，繼續執行
+	}
+
+	// 執行正常的入隊操作
 	select {
 	case q.tasks <- task:
 		return nil
