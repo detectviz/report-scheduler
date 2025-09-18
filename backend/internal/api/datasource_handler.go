@@ -33,6 +33,7 @@ func (h *APIHandler) CreateDataSource(w http.ResponseWriter, r *http.Request) {
 
 	// 在真實應用中，這裡可能還需要驗證 ds 的內容
 	if err := h.Store.CreateDataSource(r.Context(), &ds); err != nil {
+		log.Printf("Error creating data source: %v", err)
 		h.respondWithError(w, http.StatusInternalServerError, "無法建立資料來源")
 		return
 	}

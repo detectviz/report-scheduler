@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"report-scheduler/backend/internal/api"
 	"report-scheduler/backend/internal/config"
 	"report-scheduler/backend/internal/generator"
@@ -120,8 +119,9 @@ func main() {
 	})
 
 	// Frontend static file serving
-	workDir, _ := os.Getwd()
-	filesDir := http.Dir(filepath.Join(workDir, "../../frontend"))
+	// Note: This path is relative to the 'backend' directory,
+	// where the 'go run' command is executed.
+	filesDir := http.Dir("../frontend/dist")
 	FileServer(r, "/", filesDir)
 
 	// Start background services
