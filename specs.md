@@ -1,4 +1,4 @@
-# **Report Scheduler - 系統規格文件 (v2.0)**
+# **Report Scheduler - 系統規格文件**
 
 ## **1. 系統簡介**
 
