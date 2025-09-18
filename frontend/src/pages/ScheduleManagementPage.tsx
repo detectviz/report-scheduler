@@ -22,8 +22,9 @@ const ScheduleManagementPage: React.FC = () => {
         setLoading(true);
         try {
             const [schedulesData, reportsData] = await Promise.all([getSchedules(), getReportDefinitions()]);
-            setSchedules(schedulesData);
-            setReportDefinitions(reportsData);
+            // 防禦性處理：確保即使 API 回傳 null，我們也設定一個空陣列
+            setSchedules(schedulesData || []);
+            setReportDefinitions(reportsData || []);
         } catch {
             // Error is handled by the apiClient interceptor
         } finally {
@@ -147,13 +148,13 @@ const ScheduleManagementPage: React.FC = () => {
             <Button type="primary" onClick={() => showModal()} style={{ marginBottom: 16 }}>
                 新增排程
             </Button>
-            <Table columns={scheduleColumns} dataSource={schedules.map(s => ({ ...s, key: s.id }))} loading={loading} />
+            <Table columns={scheduleColumns} dataSource={(schedules || []).map(s => ({ ...s, key: s.id }))} loading={loading} />
             <Modal
                 title={editingRecord ? '編輯排程' : '新增排程'}
                 open={isModalVisible}
                 onOk={handleOk}
                 onCancel={handleCancel}
-                destroyOnHidden
+                destroyOnClose
                 width={600}
             >
                 <Form form={form} layout="vertical" name="scheduleForm" initialValues={{ timezone: 'Asia/Taipei', is_enabled: true }}>
@@ -170,7 +171,7 @@ const ScheduleManagementPage: React.FC = () => {
                     </Form.Item>
                     <Form.Item name="report_ids" label="選擇報表" rules={[{ required: true, message: '請至少選擇一份報表' }]}>
                         <Select mode="multiple" placeholder="選擇要附加在此排程的報表" loading={loading}>
-                            {reportDefinitions.map(report => (
+                            {(reportDefinitions || []).map(report => (
                                 <Option key={report.id} value={report.id}>{report.name}</Option>
                             ))}
                         </Select>
