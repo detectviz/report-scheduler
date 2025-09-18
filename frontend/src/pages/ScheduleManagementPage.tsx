@@ -52,7 +52,8 @@ const ScheduleManagementPage: React.FC = () => {
         if (isModalVisible && editingRecord) {
             form.setFieldsValue({
                 ...editingRecord,
-                recipients_to: editingRecord.recipients?.to || [],
+                // 更加防禦性的處理：確保 editingRecord.recipients 本身不是 null 或 undefined
+                recipients_to: editingRecord?.recipients?.to || [],
             });
         } else {
             form.resetFields();
@@ -164,7 +165,14 @@ const ScheduleManagementPage: React.FC = () => {
                     <Form.Item name="name" label="排程名稱" rules={[{ required: true, message: '請輸入排程名稱' }]}>
                         <Input />
                     </Form.Item>
-                    <Form.Item name="cron_spec" label="Cron 表達式" rules={[{ required: true, message: '請輸入有效的 Cron 表達式' }]}>
+                    <Form.Item
+                        name="cron_spec"
+                        label="Cron 表達式"
+                        rules={[
+                            { required: true, message: '請輸入 Cron 表達式' },
+                            { pattern: /^[^ ]+ +[^ ]+ +[^ ]+ +[^ ]+ +[^ ]+$/, message: '格式不符，應為5段以空白分隔的字串' }
+                        ]}
+                    >
                         <Input placeholder="例如：0 9 * * 1-5 (週一至週五早上 9 點)" />
                     </Form.Item>
                     <Form.Item name="timezone" label="時區" rules={[{ required: true }]}>
