@@ -13,7 +13,7 @@ import (
 )
 
 func TestHistoryAPI_WithRealDB(t *testing.T) {
-	handler, dbStore, _, cleanup := newTestHandler(t)
+	handler, dbStore, q, cleanup := newTestHandler(t)
 	defer cleanup()
 
 	server := httptest.NewServer(handler)
@@ -88,5 +88,35 @@ func TestHistoryAPI_WithRealDB(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode) // 應該回傳錯誤，因為 schedule_id 是必要的
+	})
+
+	t.Run("resend history log successfully", func(t *testing.T) {
+		// 呼叫重寄 API
+		resendURL := server.URL + "/api/v1/history/" + logEntry1.ID + "/resend"
+		resp, err := http.Post(resendURL, "application/json", nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		// 驗證回應
+		require.Equal(t, http.StatusAccepted, resp.StatusCode)
+		var result map[string]string
+		err = json.NewDecoder(resp.Body).Decode(&result)
+		require.NoError(t, err)
+		require.Equal(t, "已成功將重寄任務加入佇列", result["message"])
+
+		// 驗證任務已加入佇列
+		task, err := q.Dequeue(context.Background())
+		require.NoError(t, err)
+		require.NotNil(t, task)
+		require.Equal(t, schedule.ID, task.ScheduleID)
+	})
+
+	t.Run("resend non-existent history log", func(t *testing.T) {
+		resendURL := server.URL + "/api/v1/history/non-existent-id/resend"
+		resp, err := http.Post(resendURL, "application/json", nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusNotFound, resp.StatusCode)
 	})
 }

@@ -77,6 +77,7 @@ func newTestHandler(t *testing.T) (http.Handler, store.Store, queue.Queue, func(
 		// History 路由
 		r.Route("/history", func(r chi.Router) {
 			r.Get("/", apiHandler.GetHistory)
+			r.Post("/{log_id}/resend", apiHandler.ResendHistoryLog)
 		})
 	})
 

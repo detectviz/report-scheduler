@@ -185,6 +185,21 @@ func (s *SqliteStore) CreateHistoryLog(ctx context.Context, log *models.HistoryL
 	return err
 }
 
+func (s *SqliteStore) GetHistoryLogByID(ctx context.Context, id string) (*models.HistoryLog, error) {
+	query := `SELECT id, schedule_id, schedule_name, trigger_time, execution_duration_ms, status, error_message, recipients, report_url FROM history_logs WHERE id = ?`
+	row := s.db.QueryRowContext(ctx, query, id)
+
+	var log models.HistoryLog
+	err := row.Scan(&log.ID, &log.ScheduleID, &log.ScheduleName, &log.TriggerTime, &log.ExecutionDuration, &log.Status, &log.ErrorMessage, &log.Recipients, &log.ReportURL)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // 找不到時回傳 nil, nil，讓 handler 處理 404
+		}
+		return nil, err
+	}
+	return &log, nil
+}
+
 func (s *SqliteStore) GetHistoryLogs(ctx context.Context, scheduleID string) ([]models.HistoryLog, error) {
 	query := `SELECT id, schedule_id, schedule_name, trigger_time, execution_duration_ms, status, error_message, recipients, report_url FROM history_logs WHERE schedule_id = ? ORDER BY trigger_time DESC`
 	rows, err := s.db.QueryContext(ctx, query, scheduleID)

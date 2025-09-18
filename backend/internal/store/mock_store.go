@@ -8,8 +8,9 @@ import (
 // MockStore is a configurable, in-memory implementation of the Store interface for testing.
 type MockStore struct {
 	// Public fields allow tests to set up specific data or errors to be returned.
-	SchedulesToReturn []models.Schedule
-	ErrToReturn       error
+	SchedulesToReturn  []models.Schedule
+	HistoryLogToReturn *models.HistoryLog
+	ErrToReturn        error
 }
 
 // NewMockStore creates a new MockStore.
@@ -108,4 +109,14 @@ func (s *MockStore) GetHistoryLogs(ctx context.Context, scheduleID string) ([]mo
 		return nil, s.ErrToReturn
 	}
 	return []models.HistoryLog{}, nil
+}
+
+func (s *MockStore) GetHistoryLogByID(ctx context.Context, id string) (*models.HistoryLog, error) {
+	if s.ErrToReturn != nil {
+		return nil, s.ErrToReturn
+	}
+	if s.HistoryLogToReturn != nil && s.HistoryLogToReturn.ID == id {
+		return s.HistoryLogToReturn, nil
+	}
+	return nil, nil // Not found
 }

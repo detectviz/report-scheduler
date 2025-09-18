@@ -39,6 +39,7 @@ type Store interface {
 	// --- HistoryLog Methods ---
 	CreateHistoryLog(ctx context.Context, log *models.HistoryLog) error
 	GetHistoryLogs(ctx context.Context, scheduleID string) ([]models.HistoryLog, error)
+	GetHistoryLogByID(ctx context.Context, id string) (*models.HistoryLog, error)
 
 	// Close 關閉與資料庫的連線
 	Close() error

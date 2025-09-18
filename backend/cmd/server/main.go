@@ -116,6 +116,7 @@ func main() {
 		})
 		r.Route("/history", func(r chi.Router) {
 			r.Get("/", apiHandler.GetHistory)
+			r.Post("/{log_id}/resend", apiHandler.ResendHistoryLog)
 		})
 	})
 
