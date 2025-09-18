@@ -140,3 +140,22 @@ func (h *APIHandler) ValidateDataSource(w http.ResponseWriter, r *http.Request) 
 
 	h.respondWithJSON(w, http.StatusOK, map[string]string{"status": "verified", "message": "資料來源連線驗證成功"})
 }
+
+// GetDataSourceElements 處理獲取資料來源下可用元素的請求 (模擬)
+func (h *APIHandler) GetDataSourceElements(w http.ResponseWriter, r *http.Request) {
+	dataSourceID := chi.URLParam(r, "datasourceID")
+
+	// 在真實世界中，我們會根據 dataSourceID 和類型去連線到 Kibana/Grafana
+	// 並獲取儀表板列表。此處我們回傳一個模擬列表。
+	log.Printf("正在為資料來源 %s 獲取模擬的可用元素...", dataSourceID)
+
+	mockElements := []models.AvailableElement{
+		{ID: "kibana:dashboard:722b74f0-b882-11e8-a6d9-e546fe2bba5f", Type: "dashboard", Title: "[eCommerce] Revenue Dashboard"},
+		{ID: "kibana:visualization:89382180-b883-11e8-a6d9-e546fe2bba5f", Type: "visualization", Title: "[Flights] Flight Count and Average Ticket Price"},
+		{ID: "kibana:dashboard:a5419300-b883-11e8-a6d9-e546fe2bba5f", Type: "dashboard", Title: "[Logs] Web Traffic"},
+		{ID: "kibana:search:a9a6f220-b883-11e8-a6d9-e546fe2bba5f", Type: "saved_search", Title: "[Audit] All Authentication Events"},
+		{ID: "kibana:visualization:c7a677a0-b883-11e8-a6d9-e546fe2bba5f", Type: "visualization", Title: "[eCommerce] Average Order Size"},
+	}
+
+	h.respondWithJSON(w, http.StatusOK, mockElements)
+}

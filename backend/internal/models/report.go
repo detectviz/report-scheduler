@@ -20,7 +20,8 @@ const (
 type ReportElement struct {
 	ID    string            `json:"id"`
 	Type  ReportElementType `json:"type"`
-	Title string            `json:"title"` // 這個欄位可以在擷取時動態填入
+	Title string            `json:"title"`
+	Order int               `json:"order"`
 }
 
 // ReportElements 是一個 ReportElement 的切片，它實作了 sql.Scanner 和 driver.Valuer

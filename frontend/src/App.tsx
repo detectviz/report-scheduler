@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import MainLayout from './components/layouts/MainLayout';
 import DataSourceManagementPage from './pages/DataSourceManagementPage';
 import ReportDefinitionPage from './pages/ReportDefinition';
+import ReportDefinitionForm from './pages/ReportDefinitionForm'; // 檔名已變更
 import ScheduleManagementPage from './pages/ScheduleManagementPage';
 import HistoryPage from './pages/HistoryPage';
 
@@ -16,6 +17,8 @@ const App: React.FC = () => {
         <Route index element={<Navigate to="/datasources" replace />} />
         <Route path="datasources" element={<DataSourceManagementPage />} />
         <Route path="reports" element={<ReportDefinitionPage />} />
+        <Route path="reports/new" element={<ReportDefinitionForm />} />
+        <Route path="reports/edit/:id" element={<ReportDefinitionForm />} />
         <Route path="schedules" element={<ScheduleManagementPage />} />
         <Route path="history" element={<HistoryPage />} />
         {/* Redirect any unknown paths to the main page */}

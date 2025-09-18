@@ -59,3 +59,11 @@ func (ds DataSource) MarshalJSON() ([]byte, error) {
 		Alias: (Alias)(ds),
 	})
 }
+
+// AvailableElement represents an element that can be chosen from a data source.
+// It's defined here because it's an attribute of a data source.
+type AvailableElement struct {
+	ID    string `json:"id"`
+	Type  string `json:"type"` // Using string to avoid circular dependency on report.go's ReportElementType
+	Title string `json:"title"`
+}
