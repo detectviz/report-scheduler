@@ -1,5 +1,4 @@
 import apiClient from './client';
-import { MOCK_ENABLED } from './mockConfig';
 import { mockHistoryLogs } from './mockData';
 
 // 根據 specs.md 和後端 models 定義 HistoryLog 的 TypeScript 型別
@@ -22,7 +21,7 @@ export interface HistoryLog {
  * @returns A promise that resolves to an array of history logs.
  */
 export const getHistoryByScheduleId = async (scheduleId: string): Promise<HistoryLog[]> => {
-  if (import.meta.env.DEV && MOCK_ENABLED) {
+  if (import.meta.env.VITE_MOCK_ENABLED === 'true') {
     console.log(`%c MOCKING API: getHistoryByScheduleId (scheduleId: ${scheduleId})`, 'color: #00b300');
     const logs = mockHistoryLogs.filter(log => log.schedule_id === scheduleId);
     return new Promise(resolve => setTimeout(() => resolve(logs.map(log => ({...log, key: log.id}))), 500));
@@ -38,7 +37,7 @@ export const getHistoryByScheduleId = async (scheduleId: string): Promise<Histor
  * @returns A promise that resolves to the success message.
  */
 export const resendHistory = async (logId: string): Promise<{ message: string }> => {
-  if (import.meta.env.DEV && MOCK_ENABLED) {
+  if (import.meta.env.VITE_MOCK_ENABLED === 'true') {
     console.log(`%c MOCKING API: resendHistory (logId: ${logId})`, 'color: #00b300');
     return new Promise(resolve => setTimeout(() => resolve({ message: '已成功將重寄任務加入佇列' }), 500));
   }
