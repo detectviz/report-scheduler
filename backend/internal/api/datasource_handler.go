@@ -144,18 +144,26 @@ func (h *APIHandler) ValidateDataSource(w http.ResponseWriter, r *http.Request) 
 // GetDataSourceElements 處理獲取資料來源下可用元素的請求 (模擬)
 func (h *APIHandler) GetDataSourceElements(w http.ResponseWriter, r *http.Request) {
 	dataSourceID := chi.URLParam(r, "datasourceID")
+	log.Printf("正在為資料來源 %s 獲取可用元素...", dataSourceID)
 
-	// 在真實世界中，我們會根據 dataSourceID 和類型去連線到 Kibana/Grafana
-	// 並獲取儀表板列表。此處我們回傳一個模擬列表。
-	log.Printf("正在為資料來源 %s 獲取模擬的可用元素...", dataSourceID)
+	// 特別處理 demo.elastic.co 的資料來源
+	if dataSourceID == "ds-4" {
+		demoElements := []models.AvailableElement{
+			{ID: "security-detection-rule-monitoring-default", Type: "dashboard", Title: "[Demo] Security Detection Rule Monitoring"},
+			{ID: "kubernetes-f4dc26db-1b53-4ea2-a78b-1bfab8ea267c", Type: "dashboard", Title: "[Demo] Kubernetes Overview"},
+			{ID: "elastic_agent-0600ffa0-6b5e-11ed-98de-67bdecd21824", Type: "dashboard", Title: "[Demo] Elastic Agent Overview"},
+		}
+		h.respondWithJSON(w, http.StatusOK, demoElements)
+		return
+	}
 
-	mockElements := []models.AvailableElement{
+	// 對於其他資料來源，回傳一個通用的模擬列表
+	// 在真實世界中，這裡會去連線到目標 Kibana/Grafana
+	defaultMockElements := []models.AvailableElement{
 		{ID: "kibana:dashboard:722b74f0-b882-11e8-a6d9-e546fe2bba5f", Type: "dashboard", Title: "[eCommerce] Revenue Dashboard"},
 		{ID: "kibana:visualization:89382180-b883-11e8-a6d9-e546fe2bba5f", Type: "visualization", Title: "[Flights] Flight Count and Average Ticket Price"},
 		{ID: "kibana:dashboard:a5419300-b883-11e8-a6d9-e546fe2bba5f", Type: "dashboard", Title: "[Logs] Web Traffic"},
-		{ID: "kibana:search:a9a6f220-b883-11e8-a6d9-e546fe2bba5f", Type: "saved_search", Title: "[Audit] All Authentication Events"},
-		{ID: "kibana:visualization:c7a677a0-b883-11e8-a6d9-e546fe2bba5f", Type: "visualization", Title: "[eCommerce] Average Order Size"},
 	}
 
-	h.respondWithJSON(w, http.StatusOK, mockElements)
+	h.respondWithJSON(w, http.StatusOK, defaultMockElements)
 }
