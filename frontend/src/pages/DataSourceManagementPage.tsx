@@ -19,8 +19,9 @@ const DataSourceManagementPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [form] = Form.useForm();
 
-    // 根據所選類型，動態顯示/隱藏表單欄位
+    // 根據所選類型和認證方式，動態顯示/隱藏表單欄位
     const selectedType = Form.useWatch('type', form);
+    const selectedAuthType = Form.useWatch('auth_type', form);
 
     const fetchData = useCallback(async () => {
         try {
@@ -191,10 +192,28 @@ const DataSourceManagementPage: React.FC = () => {
 
                     <Form.Item name="auth_type" label="認證方式" rules={[{ required: true, message: '請選擇認證方式' }]}>
                         <Select placeholder="請選擇認證方式">
+                            <Option value="none">無認證</Option>
                             <Option value="basic_auth">基本認證 (帳號密碼)</Option>
                             <Option value="api_token">API Token</Option>
                         </Select>
                     </Form.Item>
+
+                    {selectedAuthType === 'basic_auth' && (
+                        <>
+                            <Form.Item name="username" label="帳號" rules={[{ required: true, message: '請輸入帳號' }]}>
+                                <Input />
+                            </Form.Item>
+                            <Form.Item name="password" label="密碼" rules={[{ required: true, message: '請輸入密碼' }]}>
+                                <Input.Password />
+                            </Form.Item>
+                        </>
+                    )}
+
+                    {selectedAuthType === 'api_token' && (
+                        <Form.Item name="api_token" label="API Token" rules={[{ required: true, message: '請輸入 API Token' }]}>
+                            <Input.Password />
+                        </Form.Item>
+                    )}
 
                     <Form.Item name="version" label="版本 (選填)"><Input /></Form.Item>
                 </Form>

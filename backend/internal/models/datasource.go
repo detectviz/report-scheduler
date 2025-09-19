@@ -20,6 +20,7 @@ type AuthType string
 const (
 	BasicAuth AuthType = "basic_auth"
 	APIToken  AuthType = "api_token"
+	AuthNone  AuthType = "none"
 )
 
 // ConnectionStatus 代表連線狀態

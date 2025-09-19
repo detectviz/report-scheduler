@@ -27,13 +27,7 @@ func NewKibanaGenerator(sm secrets.SecretsManager) *KibanaGenerator {
 func (g *KibanaGenerator) Generate(task *queue.Task, ds *models.DataSource, report *models.ReportDefinition) (*GenerateResult, error) {
 	log.Printf("[Generator] Kibana: 正在為報表 '%s' 產生報告...", report.Name)
 
-	// 1. 獲取憑證
-	creds, err := g.Secrets.GetCredentials(ds.CredentialsRef)
-	if err != nil {
-		return nil, fmt.Errorf("無法獲取 Kibana 憑證 for ref %s: %w", ds.CredentialsRef, err)
-	}
-
-	// 2. 組合 URL (簡化邏輯)
+	// 1. 組合 URL (簡化邏輯)
 	// 假設報表只有一個元素
 	if len(report.Elements) == 0 {
 		return nil, fmt.Errorf("報表 '%s' 中沒有任何元素", report.Name)
@@ -43,18 +37,25 @@ func (g *KibanaGenerator) Generate(task *queue.Task, ds *models.DataSource, repo
 	generationURL := fmt.Sprintf("%s/api/reporting/generate/dashboard/%s", ds.URL, elementID)
 	log.Printf("[Generator] Kibana: 準備請求 URL: %s", generationURL)
 
-	// 3. 建立並執行 HTTP 請求
+	// 2. 建立並執行 HTTP 請求
 	req, err := http.NewRequest("POST", generationURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("無法建立請求: %w", err)
 	}
 
-	// 根據認證類型設定標頭
-	switch ds.AuthType {
-	case models.APIToken:
-		req.Header.Set("Authorization", "ApiKey "+creds.Token)
-	case models.BasicAuth:
-		req.SetBasicAuth(creds.Username, creds.Password)
+	// 3. 只有在需要認證時才獲取憑證並設定標頭
+	if ds.AuthType != models.AuthNone {
+		creds, err := g.Secrets.GetCredentials(ds.CredentialsRef)
+		if err != nil {
+			return nil, fmt.Errorf("無法獲取 Kibana 憑證 for ref %s: %w", ds.CredentialsRef, err)
+		}
+
+		switch ds.AuthType {
+		case models.APIToken:
+			req.Header.Set("Authorization", "ApiKey "+creds.Token)
+		case models.BasicAuth:
+			req.SetBasicAuth(creds.Username, creds.Password)
+		}
 	}
 	req.Header.Set("kbn-xsrf", "true")
 	req.Header.Set("Content-Type", "application/json")
