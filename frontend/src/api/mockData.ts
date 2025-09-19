@@ -11,7 +11,20 @@ export const mockDataSources: DataSource[] = [
 ];
 
 export const mockReportDefinitions: ReportDefinition[] = [
-    { id: 'report-1', name: '每日網站流量分析', datasource_id: 'ds-1', time_range: 'now-24h', elements: [], created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+    {
+        id: 'report-1',
+        name: 'Elastic Agent 狀態儀表板',
+        datasource_id: 'ds-4',
+        time_range: 'now-7d',
+        elements: [{
+            id: 'elastic_agent-0600ffa0-6b5e-11ed-98de-67bdecd21824',
+            type: 'dashboard',
+            title: 'Elastic Agent aashboard',
+            order: 1,
+        }],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+    },
     { id: 'report-2', name: '每週伺服器效能監控', datasource_id: 'ds-2', time_range: 'now-7d', elements: [], created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
     { id: 'report-3', name: '本地測試儀表板', datasource_id: 'ds-3', time_range: 'now-1h', elements: [], created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
 ];

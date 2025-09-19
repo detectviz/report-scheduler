@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button, Table, Space, Typography, Popconfirm, message } from 'antd';
 import type { TableProps } from 'antd';
 import { useNavigate } from 'react-router-dom';
@@ -15,6 +15,7 @@ const ReportDefinitionPage: React.FC = () => {
     const [dataSources, setDataSources] = useState<Record<string, DataSource>>({});
     const [loading, setLoading] = useState(true);
     const [previewLoading, setPreviewLoading] = useState<Record<string, boolean>>({});
+    const autoPreviewTriggered = useRef(false);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -39,9 +40,36 @@ const ReportDefinitionPage: React.FC = () => {
         }
     }, []);
 
+    const handlePreview = useCallback(async (record: ReportDefinition) => {
+        setPreviewLoading(prev => ({ ...prev, [record.id]: true }));
+        try {
+            const result = await generateReportPreview(record.id);
+            if (result.preview_url) {
+                const baseUrl = window.location.origin;
+                window.open(baseUrl + result.preview_url, '_blank');
+            }
+        } catch (error) {
+            // Error is handled by apiClient
+        } finally {
+            setPreviewLoading(prev => ({ ...prev, [record.id]: false }));
+        }
+    }, []);
+
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    useEffect(() => {
+        // 元件載入後，自動觸發 report-1 的預覽
+        if (reports.length > 0 && !autoPreviewTriggered.current) {
+            const reportToPreview = reports.find(r => r.id === 'report-1');
+            if (reportToPreview) {
+                autoPreviewTriggered.current = true;
+                message.info('偵測到 report-1，自動為您執行與預覽。', 5);
+                handlePreview(reportToPreview);
+            }
+        }
+    }, [reports, handlePreview]);
 
     const handleAddReport = () => {
         navigate('/reports/new');
@@ -58,21 +86,6 @@ const ReportDefinitionPage: React.FC = () => {
             fetchData();
         } catch (error) {
             console.error("Failed to delete report definition:", error);
-        }
-    };
-
-    const handlePreview = async (record: ReportDefinition) => {
-        setPreviewLoading(prev => ({ ...prev, [record.id]: true }));
-        try {
-            const result = await generateReportPreview(record.id);
-            if (result.preview_url) {
-                const baseUrl = window.location.origin;
-                window.open(baseUrl + result.preview_url, '_blank');
-            }
-        } catch (error) {
-            // Error is handled by apiClient
-        } finally {
-            setPreviewLoading(prev => ({ ...prev, [record.id]: false }));
         }
     };
 

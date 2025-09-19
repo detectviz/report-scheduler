@@ -69,6 +69,16 @@ func newProcessFunc(s store.Store, genFactory *generator.Factory) worker.Process
 }
 
 func main() {
+	// 設定日誌輸出到 /app/backend.log
+	logFile, err := os.OpenFile("/app/backend.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		// 如果日誌設定失敗，就輸出到 stderr，但不要讓整個程式崩潰
+		log.Printf("警告：無法開啟日誌檔案 /app/backend.log: %v。日誌將輸出到標準錯誤。", err)
+	} else {
+		log.SetOutput(logFile)
+		defer logFile.Close()
+	}
+
 	cfg, _ := config.LoadConfig(".")
 	dbStore, _ := store.NewStore(cfg)
 	secretsManager := secrets.NewMockSecretsManager()

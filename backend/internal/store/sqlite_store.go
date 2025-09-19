@@ -18,13 +18,11 @@ type SqliteStore struct {
 
 // newSqliteStore 建立一個新的 SqliteStore 實例，並初始化資料庫
 func newSqliteStore(cfg config.Config) (*SqliteStore, error) {
-	// 開啟資料庫連線
 	db, err := sql.Open("sqlite3", cfg.Database.Path)
 	if err != nil {
 		return nil, err
 	}
 
-	// 檢查連線是否成功
 	if err := db.Ping(); err != nil {
 		return nil, err
 	}
@@ -37,6 +35,7 @@ func newSqliteStore(cfg config.Config) (*SqliteStore, error) {
 
 	return store, nil
 }
+
 
 // initSchema 建立資料庫資料表 (如果不存在)
 func (s *SqliteStore) initSchema() error {
