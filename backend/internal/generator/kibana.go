@@ -114,6 +114,10 @@ func (g *KibanaGenerator) Generate(task *queue.Task, ds *models.DataSource, repo
 		return nil, fmt.Errorf("無法建立請求: %w", err)
 	}
 
+	// 為了繞過 demo.elastic.co 的 cookie 同意頁面，手動加入 cookie
+	// 這是根據分析該頁面 HTML 後得到的策略
+	req.AddCookie(&http.Cookie{Name: "_iub-error", Value: "y"})
+
 	// 3. 只有在需要認證時才獲取憑證並設定標頭
 	if ds.AuthType != models.AuthNone {
 		creds, err := g.Secrets.GetCredentials(ds.CredentialsRef)
