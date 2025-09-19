@@ -5,9 +5,9 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"regexp"
 	"report-scheduler/backend/internal/models"
-	"net/url"
 	"report-scheduler/backend/internal/queue"
 	"report-scheduler/backend/internal/secrets"
 	"strconv"
@@ -19,15 +19,11 @@ import (
 // parseTimeRange 解析相對時間字串 (例如 "now-7d") 並回傳 from 和 to 的 ISO 8601 時間
 func parseTimeRange(timeRange string) (from, to string, err error) {
 	now := time.Now()
-	to = now.Format(time.RFC3339) // 'to' is always now for relative times
+	to = now.Format(time.RFC3339)
 
-	// Regex to capture the number and unit (d, h, m)
 	re := regexp.MustCompile(`^now-(\d+)([dhm])$`)
 	matches := re.FindStringSubmatch(timeRange)
-
 	if len(matches) != 3 {
-		// Handle fixed time ranges like "now/d" or other formats if needed
-		// For now, we only support "now-Xd", "now-Xh", "now-Xm"
 		return "", "", fmt.Errorf("不支援的時間範圍格式: %s", timeRange)
 	}
 
@@ -48,10 +44,46 @@ func parseTimeRange(timeRange string) (from, to string, err error) {
 
 	fromTime := now.Add(-duration)
 	from = fromTime.Format(time.RFC3339)
-
 	return from, to, nil
 }
 
+// buildURL 根據資料來源和報表定義建構最終的 Kibana Reporting URL
+func buildURL(ds *models.DataSource, report *models.ReportDefinition) (string, error) {
+	if len(report.Elements) == 0 {
+		return "", fmt.Errorf("報表 '%s' 中沒有任何元素", report.Name)
+	}
+	elementID := report.Elements[0].ID
+
+	var spacePrefix string
+	if report.Space != "" && report.Space != "default" {
+		spacePrefix = fmt.Sprintf("/s/%s", report.Space)
+	}
+	baseURL := fmt.Sprintf("%s%s/api/reporting/generate/dashboard/%s", ds.URL, spacePrefix, elementID)
+
+	// 處理時間範圍
+	if report.TimeRange != "" {
+		from, to, err := parseTimeRange(report.TimeRange)
+		if err != nil {
+			log.Printf("[Generator] Kibana: 無法解析時間範圍 '%s': %v, 將忽略此參數", report.TimeRange, err)
+			return baseURL, nil
+		}
+
+		gParam := map[string]interface{}{
+			"time": map[string]string{
+				"from": from,
+				"to":   to,
+			},
+		}
+		risonBytes, err := rison.Marshal(gParam, rison.Rison)
+		if err != nil {
+			log.Printf("[Generator] Kibana: RISON 編碼失敗: %v, 將忽略此參數", err)
+			return baseURL, nil
+		}
+		return fmt.Sprintf("%s?_g=%s", baseURL, url.QueryEscape(string(risonBytes))), nil
+	}
+
+	return baseURL, nil
+}
 
 // KibanaGenerator 負責從 Kibana 產生報表
 type KibanaGenerator struct {
@@ -69,43 +101,11 @@ func NewKibanaGenerator(sm secrets.SecretsManager) *KibanaGenerator {
 func (g *KibanaGenerator) Generate(task *queue.Task, ds *models.DataSource, report *models.ReportDefinition) (*GenerateResult, error) {
 	log.Printf("[Generator] Kibana: 正在為報表 '%s' 產生報告...", report.Name)
 
-	// 1. 組合 URL (簡化邏輯)
-	// 假設報表只有一個元素
-	if len(report.Elements) == 0 {
-		return nil, fmt.Errorf("報表 '%s' 中沒有任何元素", report.Name)
+	// 1. 建構 URL
+	generationURL, err := buildURL(ds, report)
+	if err != nil {
+		return nil, err
 	}
-	elementID := report.Elements[0].ID
-	// 真正的實作需要處理 space, RISON 編碼、時間範圍等
-	var spacePrefix string
-	if report.Space != "" && report.Space != "default" {
-		spacePrefix = fmt.Sprintf("/s/%s", report.Space)
-	}
-	generationURL := fmt.Sprintf("%s%s/api/reporting/generate/dashboard/%s", ds.URL, spacePrefix, elementID)
-
-	// 處理時間範圍
-	if report.TimeRange != "" {
-		from, to, err := parseTimeRange(report.TimeRange)
-		if err != nil {
-			log.Printf("[Generator] Kibana: 無法解析時間範圍 '%s': %v", report.TimeRange, err)
-			// 忽略時間範圍錯誤，繼續執行
-		} else {
-			// 建構 RISON 物件
-			gParam := map[string]interface{}{
-				"time": map[string]string{
-					"from": from,
-					"to":   to,
-				},
-			}
-			risonBytes, err := rison.Marshal(gParam, rison.Rison)
-			if err != nil {
-				log.Printf("[Generator] Kibana: RISON 編碼失敗: %v", err)
-			} else {
-				// 將 RISON 字串附加到 URL
-				generationURL = fmt.Sprintf("%s?_g=%s", generationURL, url.QueryEscape(string(risonBytes)))
-			}
-		}
-	}
-
 	log.Printf("[Generator] Kibana: 準備請求 URL: %s", generationURL)
 
 	// 2. 建立並執行 HTTP 請求

@@ -19,7 +19,6 @@ const DataSourceManagementPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [form] = Form.useForm();
 
-    // 根據所選類型和認證方式，動態顯示/隱藏表單欄位
     const selectedType = Form.useWatch('type', form);
     const selectedAuthType = Form.useWatch('auth_type', form);
 
@@ -29,7 +28,6 @@ const DataSourceManagementPage: React.FC = () => {
             const apiData = await getDataSources();
             setData(apiData.map((item) => ({ ...item, key: item.id })));
         } catch (error) {
-            // 錯誤訊息已由 apiClient 攔截器統一處理
             console.error("Fetch error:", error);
         } finally {
             setLoading(false);
@@ -40,7 +38,6 @@ const DataSourceManagementPage: React.FC = () => {
         fetchData();
     }, [fetchData]);
 
-    // 使用 useEffect 來處理表單值的同步，這比在 showModal 中直接設定更穩健
     useEffect(() => {
         if (isModalVisible && editingRecord) {
             form.setFieldsValue(editingRecord);
@@ -61,19 +58,16 @@ const DataSourceManagementPage: React.FC = () => {
     const handleOk = async () => {
         try {
             const values = await form.validateFields();
-
             if (editingRecord) {
-                // 更新時，只傳送表單中的值
                 await updateDataSource(editingRecord.id, values);
                 message.success('資料來源已成功更新');
             } else {
-                // 新增時，傳送表單中的值並加上預設狀態
                 const payload = { ...values, status: 'unverified' };
                 await createDataSource(payload);
                 message.success('資料來源已成功新增');
             }
             setIsModalVisible(false);
-            fetchData(); // 重新整理列表
+            fetchData();
         } catch (info) {
             console.log('Validate Failed:', info);
         }
@@ -83,7 +77,7 @@ const DataSourceManagementPage: React.FC = () => {
         try {
             await deleteDataSource(id);
             message.success('資料來源已成功刪除');
-            fetchData(); // 重新整理列表
+            fetchData();
         } catch (error) {
             console.error("Delete error:", error);
         }
@@ -94,11 +88,8 @@ const DataSourceManagementPage: React.FC = () => {
         try {
             const result = await validateDataSource(record.id);
             message.success({ content: result.message, key: record.id, duration: 2 });
-            fetchData(); // 重新整理列表以更新狀態
+            fetchData();
         } catch (error) {
-            // 錯誤訊息已由 apiClient 攔截器統一處理
-            console.error("Validation error:", error);
-            // 即使 apiClient 顯示了錯誤，我們也需要移除 loading 訊息
             message.error({ content: `"${record.name}" 驗證失敗`, key: record.id, duration: 2 });
         }
     };

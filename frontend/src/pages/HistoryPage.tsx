@@ -85,9 +85,7 @@ const HistoryPage: React.FC = () => {
             render: (_: any, record: HistoryLog) => (
                 <Space size="middle">
                     <Button type="link" style={{ padding: 0 }} onClick={() => showDetails(record)}>查看詳情</Button>
-                    {(record.status === 'success' || record.status === 'error') &&
-                        <Button type="link" style={{ padding: 0 }} onClick={() => handleResend(record)}>重寄</Button>
-                    }
+                    <Button type="link" style={{ padding: 0 }} onClick={() => handleResend(record)}>重寄</Button>
                 </Space>
             ),
         },

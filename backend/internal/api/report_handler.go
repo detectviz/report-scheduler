@@ -87,7 +87,6 @@ func (h *APIHandler) GenerateReport(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	reportID := chi.URLParam(r, "reportID")
 
-	// 1. 獲取報表定義
 	reportDef, err := h.Store.GetReportDefinitionByID(ctx, reportID)
 	if err != nil {
 		h.respondWithError(w, http.StatusInternalServerError, "無法獲取報表定義: "+err.Error())
@@ -98,7 +97,6 @@ func (h *APIHandler) GenerateReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. 獲取資料來源
 	dataSource, err := h.Store.GetDataSourceByID(ctx, reportDef.DataSourceID)
 	if err != nil {
 		h.respondWithError(w, http.StatusInternalServerError, "無法獲取資料來源: "+err.Error())
@@ -109,7 +107,6 @@ func (h *APIHandler) GenerateReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 3. 建立產生器並執行
 	genFactory := generator.NewFactory(h.Store, h.Secrets)
 	gen, err := genFactory.GetGenerator(dataSource.Type)
 	if err != nil {
@@ -117,8 +114,6 @@ func (h *APIHandler) GenerateReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 為了呼叫 Generate，我們需要一個 Task 物件，但因為是同步執行，
-	// 這裡的 Task 僅作為參數傳遞，其內容相對不重要。
 	fakeTask := &queue.Task{
 		ID:        "sync-generate-" + reportID,
 		CreatedAt: time.Now(),
@@ -130,8 +125,6 @@ func (h *APIHandler) GenerateReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 4. 回傳包含預覽 URL 的 JSON
-	// TODO: 這個 URL 需要一個檔案服務來支援
 	previewURL := "/api/v1/files/" + filepath.Base(result.FilePath)
 	h.respondWithJSON(w, http.StatusOK, map[string]string{"preview_url": previewURL})
 }

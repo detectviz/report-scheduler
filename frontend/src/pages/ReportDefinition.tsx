@@ -55,7 +55,7 @@ const ReportDefinitionPage: React.FC = () => {
         try {
             await deleteReportDefinition(id);
             message.success('報表定義已成功刪除');
-            fetchData(); // Refresh data
+            fetchData();
         } catch (error) {
             console.error("Failed to delete report definition:", error);
         }
@@ -66,12 +66,11 @@ const ReportDefinitionPage: React.FC = () => {
         try {
             const result = await generateReportPreview(record.id);
             if (result.preview_url) {
-                // 在本地開發時，URL 可能是相對的，需要加上 base URL
-                const baseUrl = import.meta.env.VITE_MOCK_ENABLED === 'true' ? '' : window.location.origin;
+                const baseUrl = window.location.origin;
                 window.open(baseUrl + result.preview_url, '_blank');
             }
         } catch (error) {
-            // 錯誤已由 apiClient 處理
+            // Error is handled by apiClient
         } finally {
             setPreviewLoading(prev => ({ ...prev, [record.id]: false }));
         }

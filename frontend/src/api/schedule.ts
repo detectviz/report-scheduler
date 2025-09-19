@@ -1,4 +1,5 @@
 import apiClient from './client';
+import { MOCK_ENABLED } from './mockConfig';
 import { mockSchedules } from './mockData';
 
 // 對應後端的 models.Recipients
@@ -25,7 +26,7 @@ export interface Schedule {
 
 // 獲取所有排程
 export const getSchedules = (): Promise<Schedule[]> => {
-  if (import.meta.env.VITE_MOCK_ENABLED === 'true') {
+  if (import.meta.env.DEV && MOCK_ENABLED) {
     console.log('%c MOCKING API: getSchedules', 'color: #00b300');
     return new Promise(resolve => setTimeout(() => resolve([...mockSchedules]), 500));
   }
@@ -34,7 +35,7 @@ export const getSchedules = (): Promise<Schedule[]> => {
 
 // 根據 ID 獲取單一排程
 export const getScheduleById = (id: string): Promise<Schedule> => {
-  if (import.meta.env.VITE_MOCK_ENABLED === 'true') {
+  if (import.meta.env.DEV && MOCK_ENABLED) {
     console.log(`%c MOCKING API: getScheduleById (id: ${id})`, 'color: #00b300');
     const schedule = mockSchedules.find(s => s.id === id);
     return new Promise((resolve, reject) => setTimeout(() => schedule ? resolve(schedule) : reject(new Error('Schedule not found')), 300));
@@ -44,7 +45,7 @@ export const getScheduleById = (id: string): Promise<Schedule> => {
 
 // 新增排程
 export const createSchedule = (data: Partial<Schedule>): Promise<Schedule> => {
-  if (import.meta.env.VITE_MOCK_ENABLED === 'true') {
+  if (import.meta.env.DEV && MOCK_ENABLED) {
     console.log('%c MOCKING API: createSchedule', 'color: #00b300', data);
     const newSchedule: Schedule = {
       id: `sched-${Date.now()}`,
@@ -65,7 +66,7 @@ export const createSchedule = (data: Partial<Schedule>): Promise<Schedule> => {
 
 // 更新排程
 export const updateSchedule = (id: string, data: Partial<Schedule>): Promise<{ message: string }> => {
-  if (import.meta.env.VITE_MOCK_ENABLED === 'true') {
+  if (import.meta.env.DEV && MOCK_ENABLED) {
     console.log(`%c MOCKING API: updateSchedule (id: ${id})`, 'color: #00b300', data);
     const index = mockSchedules.findIndex(s => s.id === id);
     if (index !== -1) {
@@ -78,7 +79,7 @@ export const updateSchedule = (id: string, data: Partial<Schedule>): Promise<{ m
 
 // 刪除排程
 export const deleteSchedule = (id: string): Promise<{ message: string }> => {
-  if (import.meta.env.VITE_MOCK_ENABLED === 'true') {
+  if (import.meta.env.DEV && MOCK_ENABLED) {
     console.log(`%c MOCKING API: deleteSchedule (id: ${id})`, 'color: #00b300');
     return new Promise(resolve => setTimeout(() => resolve({ message: '排程已成功刪除' }), 500));
   }
@@ -87,7 +88,7 @@ export const deleteSchedule = (id: string): Promise<{ message: string }> => {
 
 // 手動觸發排程
 export const triggerSchedule = (id: string): Promise<{ message: string; task_id: string }> => {
-  if (import.meta.env.VITE_MOCK_ENABLED === 'true') {
+  if (import.meta.env.DEV && MOCK_ENABLED) {
     console.log(`%c MOCKING API: triggerSchedule (id: ${id})`, 'color: #00b300');
     const taskId = `mock-task-${Date.now()}`;
     return new Promise(resolve => setTimeout(() => resolve({ message: '已成功觸發測試任務', task_id: taskId }), 1000));

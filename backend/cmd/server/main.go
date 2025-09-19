@@ -102,6 +102,7 @@ func main() {
 				r.Get("/", apiHandler.GetReportDefinitionByID)
 				r.Put("/", apiHandler.UpdateReportDefinition)
 				r.Delete("/", apiHandler.DeleteReportDefinition)
+				r.Post("/generate", apiHandler.GenerateReport)
 			})
 		})
 		r.Route("/schedules", func(r chi.Router) {
@@ -118,11 +119,11 @@ func main() {
 			r.Get("/", apiHandler.GetHistory)
 			r.Post("/{log_id}/resend", apiHandler.ResendHistoryLog)
 		})
+		// 檔案服務路由
+		r.Get("/files/{filename}", apiHandler.ServeFile)
 	})
 
 	// Frontend static file serving
-	// Note: This path is relative to the 'backend' directory,
-	// where the 'go run' command is executed.
 	filesDir := http.Dir("../frontend/dist")
 	FileServer(r, "/", filesDir)
 

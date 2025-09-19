@@ -1,4 +1,5 @@
 import apiClient from './client';
+import { MOCK_ENABLED } from './mockConfig';
 import { mockDataSources } from './mockData';
 
 // 定義資料來源的資料結構 (與 models.DataSource 對應)
@@ -25,7 +26,7 @@ export interface AvailableElement {
 
 // 獲取所有資料來源
 export const getDataSources = (): Promise<DataSource[]> => {
-    if (import.meta.env.VITE_MOCK_ENABLED === 'true') {
+    if (import.meta.env.DEV && MOCK_ENABLED) {
         console.log('%c MOCKING API: getDataSources', 'color: #00b300');
         return new Promise(resolve => setTimeout(() => resolve([...mockDataSources]), 500));
     }
@@ -34,7 +35,7 @@ export const getDataSources = (): Promise<DataSource[]> => {
 
 // 根據 ID 獲取單一資料來源
 export const getDataSourceById = (id: string): Promise<DataSource> => {
-    if (import.meta.env.VITE_MOCK_ENABLED === 'true') {
+    if (import.meta.env.DEV && MOCK_ENABLED) {
         console.log(`%c MOCKING API: getDataSourceById (id: ${id})`, 'color: #00b300');
         const ds = mockDataSources.find(d => d.id === id);
         return new Promise((resolve, reject) => setTimeout(() => ds ? resolve(ds) : reject(new Error('DataSource not found')), 300));
@@ -44,7 +45,7 @@ export const getDataSourceById = (id: string): Promise<DataSource> => {
 
 // 新增資料來源
 export const createDataSource = (data: Partial<DataSource>): Promise<DataSource> => {
-    if (import.meta.env.VITE_MOCK_ENABLED === 'true') {
+    if (import.meta.env.DEV && MOCK_ENABLED) {
         console.log('%c MOCKING API: createDataSource', 'color: #00b300', data);
         const newDs: DataSource = {
             id: `ds-${Date.now()}`,
@@ -64,7 +65,7 @@ export const createDataSource = (data: Partial<DataSource>): Promise<DataSource>
 
 // 更新資料來源
 export const updateDataSource = (id: string, data: Partial<DataSource>): Promise<{ message: string }> => {
-     if (import.meta.env.VITE_MOCK_ENABLED === 'true') {
+     if (import.meta.env.DEV && MOCK_ENABLED) {
         console.log(`%c MOCKING API: updateDataSource (id: ${id})`, 'color: #00b300', data);
         const index = mockDataSources.findIndex(d => d.id === id);
         if (index !== -1) {
@@ -77,7 +78,7 @@ export const updateDataSource = (id: string, data: Partial<DataSource>): Promise
 
 // 刪除資料來源
 export const deleteDataSource = (id: string): Promise<{ message: string }> => {
-    if (import.meta.env.VITE_MOCK_ENABLED === 'true') {
+    if (import.meta.env.DEV && MOCK_ENABLED) {
         console.log(`%c MOCKING API: deleteDataSource (id: ${id})`, 'color: #00b300');
         // In a real mock setup, you might filter the array. For now, we just resolve.
         return new Promise(resolve => setTimeout(() => resolve({ message: '資料來源已成功刪除' }), 500));
@@ -87,7 +88,7 @@ export const deleteDataSource = (id: string): Promise<{ message: string }> => {
 
 // 驗證資料來源連線
 export const validateDataSource = (id: string): Promise<{ status: string; message: string }> => {
-    if (import.meta.env.VITE_MOCK_ENABLED === 'true') {
+    if (import.meta.env.DEV && MOCK_ENABLED) {
         console.log(`%c MOCKING API: validateDataSource (id: ${id})`, 'color: #00b300');
         const ds = mockDataSources.find(d => d.id === id);
         if (ds) ds.status = 'verified';
@@ -98,7 +99,7 @@ export const validateDataSource = (id: string): Promise<{ status: string; messag
 
 // 獲取指定資料來源下的可用元素
 export const getDataSourceElements = (dataSourceId: string): Promise<AvailableElement[]> => {
-    if (import.meta.env.VITE_MOCK_ENABLED === 'true') {
+    if (import.meta.env.DEV && MOCK_ENABLED) {
         console.log(`%c MOCKING API: getDataSourceElements (id: ${dataSourceId})`, 'color: #00b300');
         const mockElements: AvailableElement[] = [
             { id: 'element-1', type: 'dashboard', title: 'Sample Dashboard 1' },

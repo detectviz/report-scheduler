@@ -37,7 +37,6 @@ func (h *APIHandler) respondWithError(w http.ResponseWriter, code int, message s
 func (h *APIHandler) respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	response, err := json.Marshal(payload)
 	if err != nil {
-		// 如果連錯誤訊息本身都無法序列化，就只能回傳一個基本的伺服器錯誤
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Internal Server Error"))
 		return
@@ -55,17 +54,14 @@ func (h *APIHandler) ServeFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 建立指向暫存目錄中檔案的完整路徑
 	// 警告：這是一個簡化的實作。在正式產品中，需要更嚴格的路徑清理和安全檢查，
 	// 以防止目錄遍歷攻擊 (directory traversal)。
 	filePath := filepath.Join(os.TempDir(), filename)
 
-	// 檢查檔案是否存在
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		h.respondWithError(w, http.StatusNotFound, "找不到指定的檔案")
 		return
 	}
 
-	// 提供檔案下載
 	http.ServeFile(w, r, filePath)
 }
