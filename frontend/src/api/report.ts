@@ -23,18 +23,11 @@ export interface ReportDefinition {
 
 // 獲取所有報表定義
 export const getReportDefinitions = (): Promise<ReportDefinition[]> => {
-    if (import.meta.env.VITE_MOCK_ENABLED === 'true') {
-        return new Promise(resolve => setTimeout(() => resolve([...mockReportDefinitions]), 500));
-    }
     return apiClient.get('/reports');
 };
 
 // 根據 ID 獲取單一報表定義
 export const getReportDefinitionById = (id: string): Promise<ReportDefinition> => {
-    if (import.meta.env.VITE_MOCK_ENABLED === 'true') {
-        const report = mockReportDefinitions.find(r => r.id === id);
-        return new Promise((resolve, reject) => setTimeout(() => report ? resolve(report) : reject(new Error('ReportDefinition not found')), 300));
-    }
     return apiClient.get(`/reports/${id}`);
 };
 
@@ -73,10 +66,14 @@ export const deleteReportDefinition = (id: string): Promise<{ message: string }>
 };
 
 // 同步產生並預覽報表
-export const generateReportPreview = (id: string): Promise<{ preview_url: string }> => {
-    if (import.meta.env.VITE_MOCK_ENABLED === 'true') {
+export const generateReportPreview = (report: ReportDefinition): Promise<{ preview_url: string }> => {
+    // 條件式模擬：當 MOCK_ENABLED 為 true，但資料來源不是 ds-4 (公開 Kibana) 時，才使用模擬
+    if (import.meta.env.VITE_MOCK_ENABLED === 'true' && report.datasource_id !== 'ds-4') {
         const mockPdfUrl = 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
+        console.log(`使用模擬 API (資料來源: ${report.datasource_id})`);
         return new Promise(resolve => setTimeout(() => resolve({ preview_url: mockPdfUrl }), 2000));
     }
-    return apiClient.post(`/reports/${id}/generate`);
+    // 對於 ds-4 或 MOCK_ENABLED 為 false 的情況，呼叫真實 API
+    console.log(`呼叫真實 API (資料來源: ${report.datasource_id})`);
+    return apiClient.post(`/reports/${report.id}/generate`);
 };

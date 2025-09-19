@@ -97,8 +97,8 @@ func TestDatasourceAPI_WithRealDB(t *testing.T) {
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
-	// 1. 開始時，GET all 應該是空的
-	t.Run("get all from empty db", func(t *testing.T) {
+	// 1. 開始時，GET all 應該只有一筆種子資料
+	t.Run("get all from seeded db", func(t *testing.T) {
 		resp, err := http.Get(server.URL + "/api/v1/datasources")
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -107,7 +107,8 @@ func TestDatasourceAPI_WithRealDB(t *testing.T) {
 		var ds []models.DataSource
 		err = json.NewDecoder(resp.Body).Decode(&ds)
 		require.NoError(t, err)
-		require.Len(t, ds, 0)
+		require.Len(t, ds, 1)
+		require.Equal(t, "ds-4", ds[0].ID) // 確認是種子資料
 	})
 
 	// 2. 建立一個新的 datasource
@@ -140,7 +141,7 @@ func TestDatasourceAPI_WithRealDB(t *testing.T) {
 		require.Equal(t, createdDS.Name, fetchedDS.Name)
 	})
 
-	// 4. 再次 GET all，應該會有一筆資料
+	// 4. 再次 GET all，應該會有兩筆資料 (種子資料 + 剛建立的)
 	t.Run("get all with one item", func(t *testing.T) {
 		resp, err := http.Get(server.URL + "/api/v1/datasources")
 		require.NoError(t, err)
@@ -150,8 +151,7 @@ func TestDatasourceAPI_WithRealDB(t *testing.T) {
 		var ds []models.DataSource
 		err = json.NewDecoder(resp.Body).Decode(&ds)
 		require.NoError(t, err)
-		require.Len(t, ds, 1)
-		require.Equal(t, createdDS.ID, ds[0].ID)
+		require.Len(t, ds, 2)
 	})
 
 	// 5. 刪除剛剛建立的 datasource

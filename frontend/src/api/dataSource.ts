@@ -26,20 +26,11 @@ export interface AvailableElement {
 
 // 獲取所有資料來源
 export const getDataSources = (): Promise<DataSource[]> => {
-    if (import.meta.env.DEV && MOCK_ENABLED) {
-        console.log('%c MOCKING API: getDataSources', 'color: #00b300');
-        return new Promise(resolve => setTimeout(() => resolve([...mockDataSources]), 500));
-    }
     return apiClient.get('/datasources');
 };
 
 // 根據 ID 獲取單一資料來源
 export const getDataSourceById = (id: string): Promise<DataSource> => {
-    if (import.meta.env.DEV && MOCK_ENABLED) {
-        console.log(`%c MOCKING API: getDataSourceById (id: ${id})`, 'color: #00b300');
-        const ds = mockDataSources.find(d => d.id === id);
-        return new Promise((resolve, reject) => setTimeout(() => ds ? resolve(ds) : reject(new Error('DataSource not found')), 300));
-    }
     return apiClient.get(`/datasources/${id}`);
 };
 
@@ -99,14 +90,5 @@ export const validateDataSource = (id: string): Promise<{ status: string; messag
 
 // 獲取指定資料來源下的可用元素
 export const getDataSourceElements = (dataSourceId: string): Promise<AvailableElement[]> => {
-    if (import.meta.env.DEV && MOCK_ENABLED) {
-        console.log(`%c MOCKING API: getDataSourceElements (id: ${dataSourceId})`, 'color: #00b300');
-        const mockElements: AvailableElement[] = [
-            { id: 'element-1', type: 'dashboard', title: 'Sample Dashboard 1' },
-            { id: 'element-2', type: 'visualization', title: 'Sales Chart' },
-            { id: 'element-3', type: 'saved_search', title: 'Error Logs' },
-        ];
-        return new Promise(resolve => setTimeout(() => resolve(mockElements), 800));
-    }
     return apiClient.get(`/datasources/${dataSourceId}/elements`);
 };

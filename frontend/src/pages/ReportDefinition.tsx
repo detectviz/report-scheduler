@@ -43,7 +43,7 @@ const ReportDefinitionPage: React.FC = () => {
     const handlePreview = useCallback(async (record: ReportDefinition) => {
         setPreviewLoading(prev => ({ ...prev, [record.id]: true }));
         try {
-            const result = await generateReportPreview(record.id);
+            const result = await generateReportPreview(record);
             if (result.preview_url) {
                 const baseUrl = window.location.origin;
                 window.open(baseUrl + result.preview_url, '_blank');

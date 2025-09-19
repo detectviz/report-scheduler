@@ -30,8 +30,8 @@ func TestReportAPI_WithRealDB(t *testing.T) {
 
 	// --- 開始測試 Report API ---
 
-	// 1. 開始時，GET all reports 應該是空的
-	t.Run("get all reports from empty table", func(t *testing.T) {
+	// 1. 開始時，GET all reports 應該只有一筆種子資料
+	t.Run("get all reports from seeded table", func(t *testing.T) {
 		resp, err := http.Get(server.URL + "/api/v1/reports")
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -40,7 +40,8 @@ func TestReportAPI_WithRealDB(t *testing.T) {
 		var reports []models.ReportDefinition
 		err = json.NewDecoder(resp.Body).Decode(&reports)
 		require.NoError(t, err)
-		require.Len(t, reports, 0)
+		require.Len(t, reports, 1)
+		require.Equal(t, "report-1", reports[0].ID)
 	})
 
 	// 2. 建立一個新的 report definition

@@ -28,12 +28,72 @@ func newSqliteStore(cfg config.Config) (*SqliteStore, error) {
 	}
 
 	store := &SqliteStore{db: db}
-	// 初始化資料表
 	if err := store.initSchema(); err != nil {
 		return nil, err
 	}
 
+	// 每次啟動時都植入種子資料，以確保 Demo 環境一致
+	if err := store.seedData(); err != nil {
+		return nil, err
+	}
+
 	return store, nil
+}
+
+// seedData 植入用於開發和測試的初始資料
+func (s *SqliteStore) seedData() error {
+	// 檢查資料是否已存在，避免重複植入
+	var count int
+	err := s.db.QueryRow("SELECT COUNT(*) FROM datasources WHERE id = 'ds-4'").Scan(&count)
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		// 資料已存在，直接返回
+		return nil
+	}
+
+	// 植入資料來源 'ds-4'
+	ds4 := &models.DataSource{
+		ID:        "ds-4",
+		Name:      "公開 Kibana 體驗環境",
+		Type:      models.Kibana,
+		URL:       "https://demo.elastic.co",
+		AuthType:  models.AuthNone,
+		Status:    models.Verified,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	queryDs := `INSERT INTO datasources (id, name, type, url, api_url, auth_type, credentials_ref, version, status, created_at, updated_at)
+			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err = s.db.Exec(queryDs, ds4.ID, ds4.Name, ds4.Type, ds4.URL, ds4.APIURL, ds4.AuthType, ds4.CredentialsRef, ds4.Version, ds4.Status, ds4.CreatedAt, ds4.UpdatedAt)
+	if err != nil {
+		return err
+	}
+
+	// 植入報表定義 'report-1'
+	elements := models.ReportElements{
+		{
+			ID:    "elastic_agent-0600ffa0-6b5e-11ed-98de-67bdecd21824",
+			Type:  models.DashboardType,
+			Title: "Elastic Agent dashboard",
+			Order: 1,
+		},
+	}
+
+	report1 := &models.ReportDefinition{
+		ID:           "report-1",
+		Name:         "Elastic Agent 狀態儀表板",
+		DataSourceID: "ds-4",
+		TimeRange:    "now-7d",
+		Elements:     elements,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+	queryReport := `INSERT INTO report_definitions (id, name, description, datasource_id, time_range, elements, created_at, updated_at)
+			  VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err = s.db.Exec(queryReport, report1.ID, report1.Name, report1.Description, report1.DataSourceID, report1.TimeRange, report1.Elements, report1.CreatedAt, report1.UpdatedAt)
+	return err
 }
 
 
