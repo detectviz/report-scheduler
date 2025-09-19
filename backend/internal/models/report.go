@@ -34,6 +34,7 @@ type ReportDefinition struct {
 	Name         string         `json:"name"`
 	Description  string         `json:"description,omitempty"`
 	DataSourceID string         `json:"datasource_id"`
+	Space        string         `json:"space,omitempty"` // Kibana space
 	TimeRange    string         `json:"time_range"`
 	Elements     ReportElements `json:"elements"` // 使用我們的自訂類型
 	CreatedAt    time.Time      `json:"created_at"`
