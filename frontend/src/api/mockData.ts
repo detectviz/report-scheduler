@@ -7,7 +7,6 @@ export const mockDataSources: DataSource[] = [
     { id: 'ds-1', name: '正式環境 Kibana', type: 'kibana', url: 'https://kibana.prod.com', api_url: 'https://es.prod.com:9200', auth_type: 'api_token', status: 'verified', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
     { id: 'ds-2', name: '測試環境 Grafana', type: 'grafana', url: 'https://grafana.dev.com', auth_type: 'basic_auth', status: 'unverified', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
     { id: 'ds-3', name: '本地 Elasticsearch', type: 'kibana', url: 'http://localhost:5601', api_url: 'http://localhost:9200', auth_type: 'none', status: 'error', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-    { id: 'ds-4', name: '公開 Kibana 體驗環境', type: 'kibana', url: 'https://demo.elastic.co/app/kibana', api_url: 'https://demo.elastic.co', auth_type: 'none', status: 'unverified', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
 ];
 
 export const mockReportDefinitions: ReportDefinition[] = [

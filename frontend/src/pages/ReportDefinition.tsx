@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button, Table, Space, Typography, Popconfirm, message } from 'antd';
 import type { TableProps } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { getReportDefinitions, deleteReportDefinition } from '../api/report';
+import { getReportDefinitions, deleteReportDefinition, generateReportPreview } from '../api/report';
 import type { ReportDefinition, ReportElement } from '../api/report';
 import { getDataSources } from '../api/dataSource';
 import type { DataSource } from '../api/dataSource';
@@ -14,6 +14,7 @@ const ReportDefinitionPage: React.FC = () => {
     const [reports, setReports] = useState<ReportDefinition[]>([]);
     const [dataSources, setDataSources] = useState<Record<string, DataSource>>({});
     const [loading, setLoading] = useState(true);
+    const [previewLoading, setPreviewLoading] = useState<Record<string, boolean>>({});
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -60,6 +61,22 @@ const ReportDefinitionPage: React.FC = () => {
         }
     };
 
+    const handlePreview = async (record: ReportDefinition) => {
+        setPreviewLoading(prev => ({ ...prev, [record.id]: true }));
+        try {
+            const result = await generateReportPreview(record.id);
+            if (result.preview_url) {
+                // 在本地開發時，URL 可能是相對的，需要加上 base URL
+                const baseUrl = import.meta.env.VITE_MOCK_ENABLED === 'true' ? '' : window.location.origin;
+                window.open(baseUrl + result.preview_url, '_blank');
+            }
+        } catch (error) {
+            // 錯誤已由 apiClient 處理
+        } finally {
+            setPreviewLoading(prev => ({ ...prev, [record.id]: false }));
+        }
+    };
+
     const columns: TableProps<ReportDefinition>['columns'] = [
         {
             title: '報表名稱',
@@ -94,7 +111,14 @@ const ReportDefinitionPage: React.FC = () => {
                     >
                         <Button type="link" danger style={{ padding: 0 }}>刪除</Button>
                     </Popconfirm>
-                    <Button type="link" disabled style={{ padding: 0 }}>立即執行</Button>
+                    <Button
+                        type="link"
+                        style={{ padding: 0 }}
+                        onClick={() => handlePreview(record)}
+                        loading={previewLoading[record.id]}
+                    >
+                        立即執行與預覽
+                    </Button>
                 </Space>
             ),
         },

@@ -3,9 +3,13 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
 	"report-scheduler/backend/internal/queue"
 	"report-scheduler/backend/internal/secrets"
 	"report-scheduler/backend/internal/store"
+
+	"github.com/go-chi/chi/v5"
 )
 
 // APIHandler 是一個包含所有應用程式依賴的結構
@@ -41,4 +45,27 @@ func (h *APIHandler) respondWithJSON(w http.ResponseWriter, code int, payload in
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	w.Write(response)
+}
+
+// ServeFile 處理提供暫存檔案的請求
+func (h *APIHandler) ServeFile(w http.ResponseWriter, r *http.Request) {
+	filename := chi.URLParam(r, "filename")
+	if filename == "" {
+		h.respondWithError(w, http.StatusBadRequest, "缺少檔案名稱")
+		return
+	}
+
+	// 建立指向暫存目錄中檔案的完整路徑
+	// 警告：這是一個簡化的實作。在正式產品中，需要更嚴格的路徑清理和安全檢查，
+	// 以防止目錄遍歷攻擊 (directory traversal)。
+	filePath := filepath.Join(os.TempDir(), filename)
+
+	// 檢查檔案是否存在
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		h.respondWithError(w, http.StatusNotFound, "找不到指定的檔案")
+		return
+	}
+
+	// 提供檔案下載
+	http.ServeFile(w, r, filePath)
 }

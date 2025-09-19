@@ -76,3 +76,14 @@ export const deleteReportDefinition = (id: string): Promise<{ message: string }>
     }
     return apiClient.delete(`/reports/${id}`);
 };
+
+// 同步產生並預覽報表
+export const generateReportPreview = (id: string): Promise<{ preview_url: string }> => {
+    if (import.meta.env.VITE_MOCK_ENABLED === 'true') {
+        console.log(`%c MOCKING API: generateReportPreview (id: ${id})`, 'color: #00b300');
+        // 在模擬模式下，回傳一個假的 PDF 連結或一個公開的範例 PDF
+        const mockPdfUrl = 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
+        return new Promise(resolve => setTimeout(() => resolve({ preview_url: mockPdfUrl }), 2000)); // 模擬 2 秒的產生時間
+    }
+    return apiClient.post(`/reports/${id}/generate`);
+};

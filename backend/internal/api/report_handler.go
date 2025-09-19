@@ -3,7 +3,11 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"path/filepath"
+	"report-scheduler/backend/internal/generator"
 	"report-scheduler/backend/internal/models"
+	"report-scheduler/backend/internal/queue"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -76,4 +80,58 @@ func (h *APIHandler) DeleteReportDefinition(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	h.respondWithJSON(w, http.StatusOK, map[string]string{"message": "報表定義 " + id + " 已成功刪除"})
+}
+
+// GenerateReport 處理同步產生單一報表的請求
+func (h *APIHandler) GenerateReport(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	reportID := chi.URLParam(r, "reportID")
+
+	// 1. 獲取報表定義
+	reportDef, err := h.Store.GetReportDefinitionByID(ctx, reportID)
+	if err != nil {
+		h.respondWithError(w, http.StatusInternalServerError, "無法獲取報表定義: "+err.Error())
+		return
+	}
+	if reportDef == nil {
+		h.respondWithError(w, http.StatusNotFound, "找不到指定的報表定義")
+		return
+	}
+
+	// 2. 獲取資料來源
+	dataSource, err := h.Store.GetDataSourceByID(ctx, reportDef.DataSourceID)
+	if err != nil {
+		h.respondWithError(w, http.StatusInternalServerError, "無法獲取資料來源: "+err.Error())
+		return
+	}
+	if dataSource == nil {
+		h.respondWithError(w, http.StatusNotFound, "找不到報表定義對應的資料來源")
+		return
+	}
+
+	// 3. 建立產生器並執行
+	genFactory := generator.NewFactory(h.Store, h.Secrets)
+	gen, err := genFactory.GetGenerator(dataSource.Type)
+	if err != nil {
+		h.respondWithError(w, http.StatusInternalServerError, "無法建立報表產生器: "+err.Error())
+		return
+	}
+
+	// 為了呼叫 Generate，我們需要一個 Task 物件，但因為是同步執行，
+	// 這裡的 Task 僅作為參數傳遞，其內容相對不重要。
+	fakeTask := &queue.Task{
+		ID:        "sync-generate-" + reportID,
+		CreatedAt: time.Now(),
+	}
+
+	result, err := gen.Generate(fakeTask, dataSource, reportDef)
+	if err != nil {
+		h.respondWithError(w, http.StatusInternalServerError, "產生報表失敗: "+err.Error())
+		return
+	}
+
+	// 4. 回傳包含預覽 URL 的 JSON
+	// TODO: 這個 URL 需要一個檔案服務來支援
+	previewURL := "/api/v1/files/" + filepath.Base(result.FilePath)
+	h.respondWithJSON(w, http.StatusOK, map[string]string{"preview_url": previewURL})
 }
