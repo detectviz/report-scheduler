@@ -33,5 +33,3 @@
     ```
 
 伺服器將會啟動在 `http://localhost:8080`。
-
-export VITE_MOCK_ENABLED=true
